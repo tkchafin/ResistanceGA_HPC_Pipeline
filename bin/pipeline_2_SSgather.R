@@ -30,12 +30,7 @@ args <- commandArgs(trailingOnly=TRUE)
 
 WD<-args[1] #working directory
 all.comb<-args[2] #output directory name (e.g. all_comb/Run1/rep_1)
-CORES<-as.numeric(args[3]) #number of cores per process
-RSRC<-args[4] #path to R scripts to source
-GENDIST<-args[5]
-SAMPLES<-args[6]
-MAXITER<-as.numeric(args[7])
-FILES<-args[8:length(args)] #rasters to operate on
+RSRC<-args[3] #path to R scripts to source
 
 setwd(WD)
 print(WD)
@@ -58,3 +53,4 @@ ss_full_results <- SS_optim_gather(gdist.inputs = gdist.inputs,
                                    dist_mod = TRUE,
                                    null_mod = TRUE,
                                    max.combination=12)
+saveRDS(ss_full_results, file=paste0(results_ss, "/single_surface_RESULTS.ALL.RDS"))
