@@ -1,709 +1,40 @@
-# Optimizing Resistance Surface using ResistanceGA
-# Need packages: ResistanceGA , rgdal, otuSummary
-# Setting up the workspace
-library(raster)
-library(ResistanceGA)
-library(otuSummary)
-library(raster)
-library(GA)
-library(MuMIn)
-library(lme4)
-library(gdistance)
-library(ggplot2)
-library(ggExtra)
-library(Matrix)
-library(utils)
-library(akima)
-library(plyr)
-library(dplyr)
-library(magrittr)
-library(spatstat)
-library(grDevices)
+library(tidyverse)
 
-#setwd("C:/Users/zbind/Desktop/ResistanceGA_Examples/WTD")
-BASE="~/Downloads/WTD_RGA"
-setwd(BASE)
-all.comb <- "~/Downloads/WTD_RGA/all_comb/"
-#CS.program <- paste('"C:/Program Files/Circuitscape/cs_run.exe"')
-
-MYPROC=1
-CORES=4 #number of cores per process
-PROCS=4 #number of processes
-
-## FOR ASSESSING AICc of fitted models, not exported
-Resistance.Opt_AICc <-
-  function(PARM,
-           Resistance,
-           CS.inputs = NULL,
-           gdist.inputs = NULL,
-           GA.inputs,
-           Min.Max = 'max',
-           iter = NULL,
-           quiet = FALSE) {
-    t1 <- proc.time()[3]
-    
-    
-    EXPORT.dir <- GA.inputs$Write.dir
-    
-    r <- Resistance
-    if (!is.null(iter)) {
-      if (GA.inputs$surface.type[iter] == "cat") {
-        PARM <- PARM / min(PARM)
-        parm <- PARM
-        df <-
-          data.frame(id = unique(r), PARM) # Data frame with original raster values and replacement values
-        r <- subs(r, df)
-        
-      } else {
-        r <- SCALE(r, 0, 10)
-        
-        # Set equation for continuous surface
-        equation <- floor(PARM[1]) # Parameter can range from 1-9.99
-        
-        # Read in resistance surface to be optimized
-        SHAPE <- (PARM[2])
-        Max.SCALE <- (PARM[3])
-        
-        # Apply specified transformation
-        rick.eq <- (equation == 2 ||
-                      equation == 4 ||
-                      equation == 6 || equation == 8)
-        if (rick.eq == TRUE & SHAPE > 5) {
-          equation <- 9
-        }
-        
-        if (equation == 1) {
-          r <- Inv.Rev.Monomolecular(r, parm = PARM)
-          EQ <- "Inverse-Reverse Monomolecular"
-          
-        } else if (equation == 5) {
-          r <- Rev.Monomolecular(r, parm = PARM)
-          EQ <- "Reverse Monomolecular"
-          
-        } else if (equation == 3) {
-          r <- Monomolecular(r, parm = PARM)
-          EQ <- "Monomolecular"
-          
-        } else if (equation == 7) {
-          r <- Inv.Monomolecular(r, parm = PARM)
-          EQ <- "Inverse Monomolecular"
-          
-        } else if (equation == 8) {
-          r <- Inv.Ricker(r, parm = PARM)
-          EQ <- "Inverse Ricker"
-          
-        } else if (equation == 4) {
-          r <- Ricker(r, parm = PARM)
-          EQ <- "Ricker"
-          
-        } else if (equation == 6) {
-          r <- Rev.Ricker(r, parm = PARM)
-          EQ <- "Reverse Ricker"
-          
-        } else if (equation == 2) {
-          r <- Inv.Rev.Ricker(r, parm = PARM)
-          EQ <- "Inverse-Reverse Ricker"
-          
-        } else {
-          r <- (r * 0) + 1 #  Distance
-          EQ <- "Distance"
-        } # End if-else
-      } # Close parameter type if-else
-    } else {
-      r <- SCALE(r, 0, 10)
-      
-      # Set equation for continuous surface
-      equation <- floor(PARM[1]) # Parameter can range from 1-9.99
-      
-      # Read in resistance surface to be optimized
-      SHAPE <- (PARM[2])
-      Max.SCALE <- (PARM[3])
-      
-      # Apply specified transformation
-      rick.eq <- (equation == 2 ||
-                    equation == 4 || equation == 6 || equation == 8)
-      if (rick.eq == TRUE & SHAPE > 5) {
-        equation <- 9
-      }
-      
-      if (equation == 1) {
-        r <- Inv.Rev.Monomolecular(r, parm = PARM)
-        EQ <- "Inverse-Reverse Monomolecular"
-        
-      } else if (equation == 5) {
-        r <- Rev.Monomolecular(r, parm = PARM)
-        EQ <- "Reverse Monomolecular"
-        
-      } else if (equation == 3) {
-        r <- Monomolecular(r, parm = PARM)
-        EQ <- "Monomolecular"
-        
-      } else if (equation == 7) {
-        r <- Inv.Monomolecular(r, parm = PARM)
-        EQ <- "Inverse Monomolecular"
-        
-      } else if (equation == 8) {
-        r <- Inv.Ricker(r, parm = PARM)
-        EQ <- "Inverse Ricker"
-        
-      } else if (equation == 4) {
-        r <- Ricker(r, parm = PARM)
-        EQ <- "Ricker"
-        
-      } else if (equation == 6) {
-        r <- Rev.Ricker(r, parm = PARM)
-        EQ <- "Reverse Ricker"
-        
-      } else if (equation == 2) {
-        r <- Inv.Rev.Ricker(r, parm = PARM)
-        EQ <- "Inverse-Reverse Ricker"
-        
-      } else {
-        r <- (r * 0) + 1 #  Distance
-        EQ <- "Distance"
-      } # End if-else
-    }
-    File.name <- "resist_surface"
-    if (cellStats(r, "max") > 1e6)
-      r <-
-      SCALE(r, 1, 1e6) # Rescale surface in case resistance are too high
-    r <- reclassify(r, c(-Inf, 1e-06, 1e-06, 1e6, Inf, 1e6))
-    
-    
-    if (!is.null(CS.inputs)) {
-      writeRaster(
-        x = r,
-        filename = paste0(EXPORT.dir, File.name, ".asc"),
-        overwrite = TRUE
-      )
-      CS.resist <-
-        Run_CS2(
-          CS.inputs,
-          GA.inputs,
-          r = r,
-          EXPORT.dir = GA.inputs$Write.dir,
-          File.name = File.name
-        )
-      
-      # Replace NA with 0...a workaround for errors when two points fall within the same cell.
-      # CS.resist[is.na(CS.resist)] <- 0
-      
-      # Run mixed effect model on each Circuitscape effective resistance
-      AIC.stat <- suppressWarnings(AIC(
-        ResistanceGA:::MLPE.lmm2(
-          resistance = CS.resist,
-          response = CS.inputs$response,
-          ID = CS.inputs$ID,
-          ZZ = CS.inputs$ZZ,
-          REML = FALSE
-        )
-      ))
-      ROW <- nrow(CS.inputs$ID)
-      
-    }
-    
-    if (!is.null(gdist.inputs)) {
-      cd <- Run_gdistance(gdist.inputs, r)
-      
-      AIC.stat <- suppressWarnings(AIC(
-        ResistanceGA:::MLPE.lmm2(
-          resistance = cd,
-          response = gdist.inputs$response,
-          ID = gdist.inputs$ID,
-          ZZ = gdist.inputs$ZZ,
-          REML = FALSE
-        )
-      ))
-      ROW <- nrow(gdist.inputs$ID)
-    }
-    
-    k <- length(PARM) + 1
-    AICc <- (AIC.stat) + (((2 * k) * (k + 1)) / (ROW - k - 1))
-    
-    rt <- proc.time()[3] - t1
-    if (quiet == FALSE) {
-      cat(paste0("\t", "Iteration took ", round(rt, digits = 2), " seconds"), "\n")
-      #     cat(paste0("\t", EQ,"; ",round(SHAPE,digits=2),"; ", round(Max.SCALE,digits=2)),"\n")
-      cat(paste0("\t", "AICc = ", round(AICc, 4)), "\n")
-      if (!is.null(iter)) {
-        if (GA.inputs$surface.type[iter] != "cat") {
-          cat(paste0("\t", EQ, " | Shape = ", PARM[2], " | Max = ", PARM[3]),
-              "\n",
-              "\n")
-        }
-      }
-    }
-    OPTIM.DIRECTION(Min.Max) * (AICc) # Function to be minimized/maximized
-  }
-
-# FUNCTIONS
-OPTIM.DIRECTION <- function(x) {
-  OPTIM <- ifelse(x == 'max', -1, 1)
-  return(OPTIM)
-}
-
-
-Cont.Param <- function(PARM) {
-  df <- data.frame(PARM[1], PARM[2])
-  colnames(df) <- c("shape_opt", "max")
-  row.names(df) <- NULL
-  return(df)
-}
-
-
-read.matrix <-
-  function(cs.matrix) {
-    lower(read.table(cs.matrix)[-1, -1])
-  }
-
-
-read.matrix2 <- function(cs.matrix) {
-  m <- read.table(cs.matrix)[-1, -1]
-}
-
-
-# Create ZZ matrix for mixed effects model
-ZZ.mat <- function(ID) {
-  Zl <-
-    lapply(c("pop1", "pop2"), function(nm)
-      Matrix::fac2sparse(ID[[nm]], "d", drop = FALSE))
-  ZZ <- Reduce("+", Zl[-1], Zl[[1]])
-  return(ZZ)
-}
-
-# Rescale function
-SCALE.vector <- function(data, MIN, MAX, threshold = 1e-5) {
-  if (abs(MIN - MAX) < threshold) {
-    data[is.finite(data)] <- 0
-    data
-  } else {
-    Mn = min(data)
-    Mx = max(data)
-    (MAX - MIN) / (Mx - Mn) * (data - Mx) + MAX
-  }
-}
-
-# Define scaling function
-# This will rescale from 1 to specified MAX
-SCALE <- function(data, MIN, MAX, threshold = 1e-5) {
-  if (abs(MIN - MAX) < threshold) {
-    data[is.finite(raster::values(data))] <- 0
-    data
-  } else {
-    Mn = cellStats(data, stat = 'min')
-    Mx = cellStats(data, stat = 'max')
-    (MAX - MIN) / (Mx - Mn) * (data - Mx) + MAX
-  }
-}
-
-# Sample values for suggests
-sv.cat <- function(levels, pop.size, min, max) {
-  cat.starts <- matrix(nrow = pop.size, ncol = levels)
-  for (r in 1:pop.size) {
-    L <- list()
-    for (i in 1:levels) {
-      if (runif(1) < .5) {
-        z <- runif(1)
-      } else {
-        z <- runif(1, min, max)
-      }
-      L[[i]] <- z
-    }
-    #   uz<-unlist(L)
-    cat.starts[r, ] <- (unlist(L))
-  }
-  cat.starts[, 1] <- 1
-  return(cat.starts)
-}
-
-
-# No Gaussian distribution
-sv.cont.nG <- function(direction,
-                       pop.size,
-                       max,
-                       min.scale,
-                       max.scale,
-                       scale = NULL, 
-                       eqs) {
-  inc <- c(1, 3)
-  dec <- c(7, 5)
-  peak <- c(2, 4, 6, 8)
-  L <- list()
-  
-  if (!is.null(scale)) {
-    cont.starts <- matrix(nrow = pop.size, ncol = 4)
-    for (r in 1:pop.size) {
-      scale.parm <- runif(1, min.scale, max.scale)
-      if (runif(1) < .5 && direction == "Increase") {
-        #       z1<-c(sample(inc,1)
-        z <- Increase.starts.nG(sample(inc, 1))
-        z <- c(z, scale.parm)
-      } else if (runif(1) < .5 && direction == "Decrease") {
-        z <- c(sample(dec, 1),
-               runif(1, .01, 10),
-               runif(1, 1, max),
-               scale.parm)
-      } else if (runif(1) < .5 && direction == "Peaked") {
-        z <- c(sample(peak, 1),
-               runif(1, .01, 10),
-               runif(1, 1, max),
-               scale.parm)
-      } else {
-        z <- c(sample(eqs, 1),
-               # runif(1, 1, 9.99),
-               runif(1, .01, 10),
-               runif(1, 1, max),
-               scale.parm)
-      }
-      cont.starts[r,] <- z
-    }
-  } else {
-    cont.starts <- matrix(nrow = pop.size, ncol = 3)
-    for (r in 1:pop.size) {
-      if (runif(1) < .5 && direction == "Increase") {
-        #       z1<-c(sample(inc,1)
-        z <- Increase.starts.nG(sample(inc, 1))
-      } else if (runif(1) < .5 && direction == "Decrease") {
-        z <- c(sample(dec, 1), runif(1, .01, 10), runif(1, 1, max))
-      } else if (runif(1) < .5 && direction == "Peaked") {
-        z <- c(sample(peak, 1), runif(1, .01, 10), runif(1, 1, max))
-      } else {
-        z <- c(sample(eqs, 1),
-               # runif(1, 1, 9.99), 
-               runif(1, .01, 10), 
-               runif(1, 1, max))
-      }
-      cont.starts[r,] <- z
-    }
-  }
-  if(ncol(cont.starts) == 4) {
-    rs <- sample(pop.size, floor(0.25 * pop.size), replace = F)
-    cont.starts[rs, 4] <- 0.25
-  }
-  
-  cont.starts
-}
-
-Increase.starts <- function(x) {
-  if (x == 1) {
-    z <- c(x, runif(1, .01, 10), runif(1, 1, 10), 1)
-  } else {
-    z <- c(x, runif(1, .01, 10), runif(1, 1, 100), 1)
-  }
-}
-
-Increase.starts.nG <- function(x) {
-  if (x == 1) {
-    z <- c(x, runif(1, .01, 10), runif(1, 1, 10))
-  } else {
-    z <- c(x, runif(1, .01, 10), runif(1, 1, 100))
-  }
-}
-
-
-
-unique <- raster::unique
-
-eq.set <- function(include.list) {
-  out <- vector(mode = "list", length = length(include.list))
-  for (i in seq_along(include.list)) {
-    if (include.list[[i]] == "A" | is.na(include.list[[i]])) {
-      out <- 1:9
-      return(out)
-    } else if (include.list[[i]] == "M") {
-      out <- c(1, 3, 5, 7, 9)
-      return(out)
-    } else if (include.list[[i]] == "R") {
-      out <- c(2, 4, 6, 8, 9)
-      return(out)
-    } else if (!is.na(match(include.list[[i]], 1:9))) {
-      out <- include.list
-      return(out)
-    } else {
-      cat(
-        "The specified transformations to assess are not valid. \n
-        Please see Details of the GA.prep."
-      )
-    }
-    }
-  }
-
-get.EQ <- function(equation) {
-  # Apply specified transformation
-  if (is.numeric(equation)) {
-    equation = floor(equation)
-    if (equation == 1) {
-      EQ <- "Inverse-Reverse Monomolecular"
-      
-    } else if (equation == 5) {
-      EQ <- "Reverse Monomolecular"
-      
-    } else if (equation == 3) {
-      EQ <- "Monomolecular"
-      
-    } else if (equation == 7) {
-      EQ <- "Inverse Monomolecular"
-      
-    } else if (equation == 8) {
-      EQ <- "Inverse Ricker"
-      
-    } else if (equation == 4) {
-      EQ <- "Ricker"
-      
-    } else if (equation == 6) {
-      EQ <- "Reverse Ricker"
-      
-    } else if (equation == 2) {
-      EQ <- "Inverse-Reverse Ricker"
-      
-    } else {
-      EQ <- "Distance"
-    }
-    
-    (EQ)
-  } else {
-    if (equation == "Inverse-Reverse Monomolecular") {
-      EQ <- 1
-      
-    } else if (equation == "Reverse Monomolecular") {
-      EQ <- 5
-      
-    } else if (equation == "Monomolecular") {
-      EQ <- 3
-      
-    } else if (equation == "Inverse Monomolecular") {
-      EQ <- 7
-      
-    } else if (equation == "Inverse Ricker") {
-      EQ <- 8
-      
-    } else if (equation == "Ricker") {
-      EQ <- 4
-      
-    } else if (equation == "Reverse Ricker") {
-      EQ <- 6
-      
-    } else if (equation == "Inverse-Reverse Ricker") {
-      EQ <- 2
-      
-    } else {
-      EQ <- 9
-    }
-    
-    (EQ)
-  }
-}
-
-Result.txt <-
-  function(GA.results,
-           GA.inputs,
-           method,
-           k,
-           Run.Time,
-           fit.stats,
-           MLPE.coef = NULL,
-           optim,
-           aic,
-           AICc,
-           LL) {
-    summary.file <-
-      paste0(GA.inputs$Results.dir, "Multisurface_Optim_Summary.txt")
-    # AICc<-GA.results@fitnessValue
-    # AICc<-round(AICc,digits=4)
-    ELITE <- floor(GA.inputs$percent.elite * GA.inputs$pop.size)
-    #   mlpe.results<-ResistanceGA:::MLPE.lmm_coef(GA.inputs$Results.dir,genetic.dist=CS.inputs$response)
-    
-    sink(summary.file)
-    cat(paste0(
-      "Summary from multisurface optimization run conducted on ",
-      Sys.Date()
-    ),
-    "\n")
-    cat("\n")
-    cat(paste0("Optimized using: ", method), "\n")
-    cat("\n")
-    cat(paste0("Objective function: ", optim), "\n")
-    cat("\n")
-    cat(paste0("Surfaces included in optimization:"), "\n")
-    cat(GA.inputs$parm.type$name, "\n")
-    cat("\n")
-    cat("Genetic Algorithm optimization settings:")
-    cat("\n")
-    cat(paste0("Type of genetic algorithm used: ", GA.results@type),
-        "\n")
-    cat(paste0("popSize at each iteration: ", GA.results@popSize),
-        "\n")
-    cat(paste0("Maximum number of iterations: ", GA.results@maxiter),
-        "\n")
-    cat(paste0(
-      "Number individuals retained each generation (elistism): ",
-      ELITE
-    ),
-    "\n")
-    cat(paste0("Crossover probability: ", GA.results@pcrossover),
-        "\n")
-    cat(paste0("Mutation probability: ", GA.results@pmutation), "\n")
-    cat("\n")
-    cat(
-      paste0(
-        "The Genetic Algorithm completed after ",
-        GA.results@iter,
-        " iterations"
-      ),
-      "\n"
-    )
-    cat("\n")
-    cat(paste0("k =  ", k), "\n")
-    cat("\n")
-    cat(paste0("Minimum AIC: ", aic), "\n")
-    cat("\n")
-    cat(paste0("AICc: ", AICc), "\n")
-    cat("\n")
-    cat(paste0("Pseudo marginal R-square (R2m): ", fit.stats[[1]]), "\n")
-    cat(paste0("Pseudo conditional R-square (R2c): ", fit.stats[[2]]),
-        "\n")
-    cat("\n")
-    cat(paste0("Log Likelihood: ", LL), "\n")
-    cat("\n")
-    cat(paste0("Optimized values for each surface:"), "\n")
-    cat(GA.results@solution, "\n")
-    cat("\n")
-    cat(paste0("Optimization took ", Run.Time, " seconds to complete"),
-        "\n")
-    sink()
-  }
-
-##########################################################################################
-
-get.name <- function(x) {
-  nm <- deparse(substitute(x))
-  return(nm)
-}
-
-
-# Transformation Eqs ------------------------------------------------------
-
-Monomolecular <- function(r, parm) {
-  parm[3] * (1 - exp(-1 * r / parm[2])) + 1 # Monomolecular
-}
-
-Inv.Monomolecular <- function(r, parm) {
-  if (class(r) == "RasterLayer") {
-    R <- parm[3] * (exp(-1 * r / parm[2]))
-    (R <- (R - cellStats(R, stat = "min")) + 1)
-  } else {
-    R <- parm[3] * (exp(-1 * r / parm[2]))
-    (R <- (R - min(R)) + 1)
-  }
-}
-
-Inv.Rev.Monomolecular <- function(r, parm) {
-  if (class(r) == "RasterLayer") {
-    rev.rast <- SCALE((-1 * r), 0, 10)
-    Inv.Monomolecular(rev.rast, parm)
-  } else {
-    rev.rast <- SCALE.vector((-1 * r), 0, 10)
-    Inv.Monomolecular(rev.rast, parm)
-  }
-}
-
-Rev.Monomolecular <- function(r, parm) {
-  if (class(r) == "RasterLayer") {
-    rev.rast <- SCALE((-1 * r), 0, 10)
-    Monomolecular(rev.rast, parm)
-  } else {
-    rev.rast <- SCALE.vector((-1 * r), 0, 10)
-    Monomolecular(rev.rast, parm)
-  }
-}
-
-
-Ricker <- function(r, parm) {
-  parm[3] * r * exp(-1 * r / parm[2]) + 1 # Ricker
-}
-
-Inv.Ricker <- function(r, parm) {
-  if (class(r) == "RasterLayer") {
-    R <- (-1 * parm[3]) * r * exp(-1 * r / parm[2]) - 1 # Ricker
-    R <-
-      SCALE(R,
-            MIN = abs(cellStats(R, stat = 'max')),
-            MAX = abs(cellStats(R, stat = 'min'))) # Rescale
-  } else {
-    R <- (-1 * parm[3]) * r * exp(-1 * r / parm[2]) - 1 # Ricker
-    R <- SCALE.vector(R, MIN = abs(max(R)), MAX = abs(min(R))) # Rescale
-  }
-}
-
-Inv.Rev.Ricker <- function(r, parm) {
-  if (class(r) == "RasterLayer") {
-    rev.rast <- SCALE((-1 * r), 0, 10)
-    Inv.Ricker(rev.rast, parm)
-  } else {
-    rev.rast <- SCALE.vector((-1 * r), 0, 10)
-    Inv.Ricker(rev.rast, parm)
-  }
-}
-
-Rev.Ricker <- function(r, parm) {
-  if (class(r) == "RasterLayer") {
-    rev.rast <- SCALE((-1 * r), 0, 10)
-    Ricker(rev.rast, parm)
-  } else {
-    rev.rast <- SCALE.vector((-1 * r), 0, 10)
-    Ricker(rev.rast, parm)
-  }
-}
-
-yn.question <- function(question, add_lines_before = TRUE) {
-  choices <- c("Yes", "No", "New Subdirectory")
-  if(add_lines_before) cat("------------------------\n")   
-  the_answer <- menu(choices, title = question)
-  
-  if(the_answer == 1L) {
-    return(TRUE)
-  } else if(the_answer == 2L) {
-    return(FALSE)
-  } else if(the_answer == 3L){
-    return(NA)
-  }
-  
-  # ifelse(the_answer == 1L, TRUE, FALSE)   # returns TRUE or FALSE
-}
-
+#RGA modified functions
 
 SS_optim_worker <- function(CS.inputs = NULL,
                             gdist.inputs = NULL,
                             GA.inputs,
                             nlm = FALSE,
                             dist_mod = TRUE,
-                            null_mod = TRUE,
-                            myproc = NULL, 
-                            jobs = NULL) {
+                            null_mod = TRUE) {
   if (!is.null(GA.inputs$scale)) {
     stop(
       "This function should NOT be used if you intend to apply kernel smoothing to your resistance surfaces"
     )
   }
-  t1 <- proc.time()[3]
-  RESULTS.cat <- list() # List to store categorical results within
-  RESULTS.cont <- list() # List to store continuous results within
+  results_ss <- paste0(GA.inputs$Results.dir, "/single.surface")
+  dir.create(results_ss)
+  print(paste0("Result dir: ",results_ss))
+  print(paste0("Plots dir: ",GA.inputs$Plots.dir))
+  print(paste0("Write dir: ",GA.inputs$Write.dir))
+  
+  
+  #RESULTS.cat <- list() # List to store categorical results within
+  #RESULTS.cont <- list() # List to store continuous results within
   cnt1 <- 0
   cnt2 <- 0
   k.value <- GA.inputs$k.value
-  MLPE.list <- list()
-  cd.list <- list()
-  k.list <- list()
+  #MLPE.list <- list()
+  #cd.list <- list()
+  #k.list <- list()
   
   # Optimize each surface in turn
   for (i in 1:GA.inputs$n.layers) {
     #if i not in list of job indices, skip
-    if (!i %in% jobs){
-      next
-    }else{
-      print(paste0("Proc ", myproc, " performing SS optimization on ", GA.inputs$layer.names[i]))
       r <- GA.inputs$Resistance.stack[[i]]
       names(r) <- GA.inputs$layer.names[i]
+      print(paste0("Starting SS optimization on layer ", GA.inputs$layer.names[i]))
       
       # CIRCUITSCAPE ------------------------------------------------------------
       
@@ -757,11 +88,11 @@ SS_optim_worker <- function(CS.inputs = NULL,
           r <- subs(r, df)
           names(r) <- GA.inputs$layer.names[i]
           
-          Run_CS(CS.inputs, GA.inputs, r, EXPORT.dir = GA.inputs$Results.dir)
+          Run_CS(CS.inputs, GA.inputs, r, EXPORT.dir = results_ss)
           
           Diagnostic.Plots(
             resistance.mat = paste0(
-              GA.inputs$Results.dir,
+              results_ss,
               GA.inputs$layer.names[i],
               "_resistances.out"
             ),
@@ -776,7 +107,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
             r.squaredGLMM(
               MLPE.lmm(
                 resistance = paste0(
-                  GA.inputs$Results.dir,
+                  results_ss,
                   GA.inputs$layer.names[i],
                   "_resistances.out"
                 ),
@@ -791,7 +122,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
             AIC(
               MLPE.lmm(
                 resistance = paste0(
-                  GA.inputs$Results.dir,
+                  results_ss,
                   GA.inputs$layer.names[i],
                   "_resistances.out"
                 ),
@@ -806,7 +137,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
             logLik(
               MLPE.lmm(
                 resistance = paste0(
-                  GA.inputs$Results.dir,
+                  results_ss,
                   GA.inputs$layer.names[i],
                   "_resistances.out"
                 ),
@@ -865,11 +196,12 @@ SS_optim_worker <- function(CS.inputs = NULL,
               Features
             )
           
-          RESULTS.cat[[cnt1]] <- RS
+          #RESULTS.cat[[cnt1]] <- RS
+          saveRDS(RS, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_RESULTS_CAT.SS.rds"), compress=TRUE)
           
-          MLPE.list[[i]] <- MLPE.lmm(
+          MLPE <- MLPE.lmm(
             resistance = paste0(
-              GA.inputs$Results.dir,
+              results_ss,
               GA.inputs$layer.names[i],
               "_resistances.out"
             ),
@@ -878,14 +210,16 @@ SS_optim_worker <- function(CS.inputs = NULL,
             ID = CS.inputs$ID,
             ZZ = CS.inputs$ZZ
           )
+          saveRDS(MLPE, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_MLPE.SS.rds"), compress=TRUE)
           
-          cd.list[[i]] <- (read.table(paste0(
-            GA.inputs$Results.dir,
+          CD <- (read.table(paste0(
+            results_ss,
             GA.inputs$layer.names[i],
             "_resistances.out"))[-1, -1])
+          saveRDS(CD, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_CD.SS.rds"), compress=TRUE)
           
-          names(MLPE.list)[i] <- GA.inputs$layer.names[i]
-          names(cd.list)[i] <- GA.inputs$layer.names[i]
+          #names(MLPE.list)[i] <- GA.inputs$layer.names[i]
+          #names(cd.list)[i] <- GA.inputs$layer.names[i]
           
           # * Continuous -----------------------------------------------------------
         } else {
@@ -949,12 +283,12 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 get.best = TRUE,
                 CS.inputs = CS.inputs,
                 Min.Max = 'min',
-                write.dir = GA.inputs$Results.dir
+                write.dir = results_ss
               )
             
             Diagnostic.Plots(
               resistance.mat = paste0(
-                GA.inputs$Results.dir,
+                results_ss,
                 GA.inputs$layer.names[i],
                 "_resistances.out"
               ),
@@ -986,11 +320,12 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 "Equation",
                 "shape",
                 "max")
-            RESULTS.cont[[cnt2]] <- RS
+            #RESULTS.cont[[cnt2]] <- RS
+            saveRDS(RS, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_RESULTS_CONT.SS.rds"), compress=TRUE)
             
-            MLPE.list[[i]] <- MLPE.lmm(
+            MLPE <- MLPE.lmm(
               resistance = paste0(
-                GA.inputs$Results.dir,
+                results_ss,
                 GA.inputs$layer.names[i],
                 "_resistances.out"
               ),
@@ -999,14 +334,16 @@ SS_optim_worker <- function(CS.inputs = NULL,
               ID = CS.inputs$ID,
               ZZ = CS.inputs$ZZ
             )
+            saveRDS(MLPE, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_MLPE.SS.rds"), compress=TRUE)
             
-            cd.list[[i]] <- (read.table(paste0(
-              GA.inputs$Results.dir,
+            CD <- (read.table(paste0(
+              results_ss,
               GA.inputs$layer.names[i],
               "_resistances.out"))[-1, -1])
+            saveRDS(CD, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_CD.SS.rds"), compress=TRUE)
             
-            names(MLPE.list)[i] <- GA.inputs$layer.names[i]
-            names(cd.list)[i] <- GA.inputs$layer.names[i]
+            #names(MLPE.list)[i] <- GA.inputs$layer.names[i]
+            #names(cd.list)[i] <- GA.inputs$layer.names[i]
             
           } else {
             
@@ -1032,11 +369,11 @@ SS_optim_worker <- function(CS.inputs = NULL,
             Run_CS(CS.inputs,
                    GA.inputs,
                    r.tran,
-                   EXPORT.dir = GA.inputs$Results.dir)
+                   EXPORT.dir = results_ss)
             
             Diagnostic.Plots(
               resistance.mat = paste0(
-                GA.inputs$Results.dir,
+                results_ss,
                 GA.inputs$layer.names[i],
                 "_resistances.out"
               ),
@@ -1058,7 +395,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               MLPE.lmm(
                 REML = F,
                 resistance = paste0(
-                  GA.inputs$Results.dir,
+                  results_ss,
                   GA.inputs$layer.names[i],
                   "_resistances.out"
                 ),
@@ -1071,7 +408,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               MLPE.lmm(
                 REML = F,
                 resistance = paste0(
-                  GA.inputs$Results.dir,
+                  results_ss,
                   GA.inputs$layer.names[i],
                   "_resistances.out"
                 ),
@@ -1085,7 +422,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               logLik(
                 MLPE.lmm(
                   resistance = paste0(
-                    GA.inputs$Results.dir,
+                    results_ss,
                     GA.inputs$layer.names[i],
                     "_resistances.out"
                   ),
@@ -1106,8 +443,9 @@ SS_optim_worker <- function(CS.inputs = NULL,
               k <- length(GA.inputs$layer.names[i]) + 1
             }
             
-            k.list[[i]] <- k
-            names(k.list)[i] <- GA.inputs$layer.names[i]
+            #k.list[[i]] <- k
+            #names(k.list)[i] <- GA.inputs$layer.names[i]
+            saveRDS(k, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_K.SS.rds"), compress=TRUE)
             
             n <- CS.inputs$n.Pops
             AICc <-
@@ -1142,11 +480,12 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 "shape",
                 "max"
               )
-            RESULTS.cont[[cnt2]] <- RS
+            #RESULTS.cont[[cnt2]] <- RS
+            saveRDS(RS, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_RESULTS_CONT.SS.rds"), compress=TRUE)
             
-            MLPE.list[[i]] <- MLPE.lmm(
+            MLPE <- MLPE.lmm(
               resistance = paste0(
-                GA.inputs$Results.dir,
+                results_ss,
                 GA.inputs$layer.names[i],
                 "_resistances.out"
               ),
@@ -1155,14 +494,16 @@ SS_optim_worker <- function(CS.inputs = NULL,
               ID = CS.inputs$ID,
               ZZ = CS.inputs$ZZ
             )
+            saveRDS(MLPE, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_MLPE.SS.rds"), compress=TRUE)
             
-            cd.list[[i]] <- (read.table(paste0(
-              GA.inputs$Results.dir,
+            CD <- (read.table(paste0(
+              results_ss,
               GA.inputs$layer.names[i],
               "_resistances.out"))[-1, -1])
+            saveRDS(CD, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_CD.SS.rds"), compress=TRUE)
             
-            names(MLPE.list)[i] <- GA.inputs$layer.names[i]
-            names(cd.list)[i] <- GA.inputs$layer.names[i]
+            #names(MLPE.list)[i] <- GA.inputs$layer.names[i]
+            #names(cd.list)[i] <- GA.inputs$layer.names[i]
             
           }
         } # Close if-else
@@ -1204,20 +545,22 @@ SS_optim_worker <- function(CS.inputs = NULL,
               )
             )
           
-          MLPE.list[[i + 1]] <- MLPE.lmm(
+          MLPE <- MLPE.lmm(
             resistance = paste0(GA.inputs$Write.dir, "dist_resistances.out"),
             pairwise.genetic = CS.inputs$response,
             REML = TRUE,
             ID = CS.inputs$ID,
             ZZ = CS.inputs$ZZ
           )
+          saveRDS(MLPE, file=paste0(results_ss, "/", 'Distance', "_MLPE.SS.rds"), compress=TRUE)
           
-          cd.list[[i + 1]] <- cd
+          CD <- cd
+          saveRDS(CD, file=paste0(results_ss, "/", 'Distance', "_CD.SS.rds"), compress=TRUE)
           # (read.table(paste0(GA.inputs$Write.dir, "dist_resistances.out"))[-1, -1])
           
-          names(cd.list)[i + 1] <- 'Distance'
+          #names(cd.list)[i + 1] <- 'Distance'
           
-          names(MLPE.list)[i + 1] <- "Distance"
+          #names(MLPE.list)[i + 1] <- "Distance"
           
           if (GA.inputs$method == "AIC") {
             dist.obj <- Dist.AIC
@@ -1256,6 +599,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               "R2c",
               "LL"
             )
+          saveRDS(Dist.AICc, file=paste0(results_ss, "/", 'Dist.AICc', ".SS.rds"), compress=TRUE)
         }
         
         if (null_mod == TRUE) {
@@ -1311,6 +655,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               "R2c",
               "LL"
             )
+          saveRDS(Null.AICc, file=paste0(results_ss, "/", 'Null.AICc', ".SS.rds"), compress=TRUE)
         }
         
       }
@@ -1365,21 +710,21 @@ SS_optim_worker <- function(CS.inputs = NULL,
           # save(cd, file = paste0(GA.inputs$Write.dir, NAME, ".rda"))
           write.table(
             as.matrix(cd),
-            file = paste0(GA.inputs$Results.dir, NAME, "_", gdist.inputs$method,  "_distMat.csv"),
+            file = paste0(results_ss, "/", NAME, "_", gdist.inputs$method,  "_distMat.csv"),
             
             sep = ",",
             row.names = F,
             col.names = F
           )
           writeRaster(r,
-                      paste0(GA.inputs$Results.dir, NAME, ".asc"),
+                      paste0(results_ss, "/", NAME, ".asc"),
                       overwrite = TRUE)
           
           # save(single.GA,
-          #      file = paste0(GA.inputs$Results.dir, NAME, ".rda"))
+          #      file = paste0(results_ss, NAME, ".rda"))
           
           saveRDS(single.GA,
-                  file = paste0(GA.inputs$Results.dir, NAME, ".rds"))
+                  file = paste0(results_ss, "/", NAME, ".rds"))
           
           Diagnostic.Plots(
             resistance.mat = cd,
@@ -1431,8 +776,9 @@ SS_optim_worker <- function(CS.inputs = NULL,
             k <- length(GA.inputs$layer.names[i]) + 1
           }
           
-          k.list[[i]] <- k
-          names(k.list)[i] <- GA.inputs$layer.names[i]
+          #k.list[[i]] <- k
+          #names(k.list)[i] <- GA.inputs$layer.names[i]
+          saveRDS(k, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_K.SS.rds"), compress=TRUE)
           
           n <- gdist.inputs$n.Pops
           AICc <-
@@ -1473,20 +819,23 @@ SS_optim_worker <- function(CS.inputs = NULL,
               Features
             )
           
-          RESULTS.cat[[cnt1]] <- RS
+          #RESULTS.cat[[cnt1]] <- RS
+          saveRDS(RS, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_RESULTS_CAT.SS.rds"), compress=TRUE)
           
-          MLPE.list[[i]] <-  MLPE.lmm2(
+          MLP <-  MLPE.lmm2(
             resistance = cd,
             response = gdist.inputs$response,
             REML = TRUE,
             ID = gdist.inputs$ID,
             ZZ = gdist.inputs$ZZ
           )
+          saveRDS(MLPE, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_MLPE.SS.rds"), compress=TRUE)
           
-          cd.list[[i]] <- as.matrix(cd)
-          names(cd.list)[i] <- GA.inputs$layer.names[i]
+          CD <- as.matrix(cd)
+          saveRDS(CD, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_CD.SS.rds"), compress=TRUE)
+          #names(cd.list)[i] <- GA.inputs$layer.names[i]
           
-          names(MLPE.list)[i] <- GA.inputs$layer.names[i]
+          #names(MLPE.list)[i] <- GA.inputs$layer.names[i]
           
         } else {
           # Processing of continuous surfaces
@@ -1547,7 +896,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 shape = Optim.nlm$estimate[1],
                 max = Optim.nlm$estimate[2],
                 r = r,
-                out = GA.inputs$Results.dir
+                out = results_ss
               )
             
             names(r) <- GA.inputs$layer.names[i]
@@ -1557,21 +906,21 @@ SS_optim_worker <- function(CS.inputs = NULL,
             # save(cd, file = paste0(GA.inputs$Write.dir, NAME, ".rda"))
             write.table(
               as.matrix(cd),
-              file = paste0(GA.inputs$Results.dir, NAME, "_", gdist.inputs$method,  "_distMat.csv"),
+              file = paste0(results_ss, "/", NAME, "_", gdist.inputs$method,  "_distMat.csv"),
               
               sep = ",",
               row.names = F,
               col.names = F
             )
             writeRaster(r,
-                        paste0(GA.inputs$Results.dir, NAME, ".asc"),
+                        paste0(results_ss, "/", NAME, ".asc"),
                         overwrite = TRUE)
             
             # save(single.GA,
-            #      file = paste0(GA.inputs$Results.dir, NAME, ".rda"))
+            #      file = paste0(results_ss, NAME, ".rda"))
             
             saveRDS(single.GA,
-                    file = paste0(GA.inputs$Results.dir, NAME, ".rds"))
+                    file = paste0(results_ss, "/", NAME, ".rds"))
             
             Diagnostic.Plots(
               resistance.mat = cd,
@@ -1630,7 +979,8 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 "Equation",
                 "shape",
                 "max")
-            RESULTS.cont[[cnt2]] <- RS
+            #RESULTS.cont[[cnt2]] <- RS
+            saveRDS(RS, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_RESULTS_CONT.SS.rds"), compress=TRUE)
             
             # * Continuous -----------------------------------------------------------
             
@@ -1659,7 +1009,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
             # save(cd, file = paste0(GA.inputs$Write.dir, NAME, ".rda"))
             write.table(
               as.matrix(cd),
-              file = paste0(GA.inputs$Results.dir, NAME, "_", gdist.inputs$method, "_distMat.csv"),
+              file = paste0(results_ss, "/", NAME, "_", gdist.inputs$method, "_distMat.csv"),
               
               sep = ",",
               row.names = F,
@@ -1667,14 +1017,14 @@ SS_optim_worker <- function(CS.inputs = NULL,
             )
             
             writeRaster(r,
-                        paste0(GA.inputs$Results.dir, NAME, ".asc"),
+                        paste0(results_ss, "/", NAME, ".asc"),
                         overwrite = TRUE)
             
             # save(single.GA,
-            #      file = paste0(GA.inputs$Results.dir, NAME, ".rda"))
+            #      file = paste0(results_ss, NAME, ".rda"))
             
             saveRDS(single.GA,
-                    file = paste0(GA.inputs$Results.dir, NAME, ".rds"))
+                    file = paste0(results_ss, "/", NAME, ".rds"))
             
             Diagnostic.Plots(
               resistance.mat = cd,
@@ -1727,18 +1077,20 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 )
               )
             
-            MLPE.list[[i]] <-  MLPE.lmm2(
+            MLPE <-  MLPE.lmm2(
               resistance = cd,
               response = gdist.inputs$response,
               REML = TRUE,
               ID = gdist.inputs$ID,
               ZZ = gdist.inputs$ZZ
             )
+            saveRDS(MLPE, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_MLPE.SS.rds"), compress=TRUE)
             
-            cd.list[[i]] <- as.matrix(cd)
-            names(cd.list)[i] <- GA.inputs$layer.names[i]
+            CD <- as.matrix(cd)
+            saveRDS(CD, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_CD.SS.rds"), compress=TRUE)
+            #names(cd.list)[i] <- GA.inputs$layer.names[i]
             
-            names(MLPE.list)[i] <- GA.inputs$layer.names[i]
+            #names(MLPE.list)[i] <- GA.inputs$layer.names[i]
             
             if (k.value == 1) {
               k <- 2
@@ -1750,8 +1102,9 @@ SS_optim_worker <- function(CS.inputs = NULL,
               k <- length(GA.inputs$layer.names[i]) + 1
             }
             
-            k.list[[i]] <- k
-            names(k.list)[i] <- GA.inputs$layer.names[i]
+            #k.list[[i]] <- k
+            #names(k.list)[i] <- GA.inputs$layer.names[i]
+            saveRDS(k, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_K.SS.rds"), compress=TRUE)
             
             n <- gdist.inputs$n.Pops
             AICc <-
@@ -1787,7 +1140,8 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 "shape",
                 "max"
               )
-            RESULTS.cont[[cnt2]] <- RS
+            #RESULTS.cont[[cnt2]] <- RS
+            saveRDS(RS, file=paste0(results_ss, "/", GA.inputs$layer.names[i], "_RESULTS_CONT.SS.rds"), compress=TRUE)
           }
         } # Close if-else
         
@@ -1798,7 +1152,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
           
           write.table(
             as.matrix(cd),
-            file = paste0(GA.inputs$Results.dir, 'Distance', "_", gdist.inputs$method, "_distMat.csv"),
+            file = paste0(results_ss, "/", 'Distance', "_", gdist.inputs$method, "_distMat.csv"),
             sep = ",",
             row.names = F,
             col.names = F
@@ -1834,24 +1188,27 @@ SS_optim_worker <- function(CS.inputs = NULL,
             )
           )
           
-          MLPE.list[[i + 1]] <-  MLPE.lmm2(
+          MLPE <-  MLPE.lmm2(
             resistance = cd,
             response = gdist.inputs$response,
             REML = TRUE,
             ID = gdist.inputs$ID,
             ZZ = gdist.inputs$ZZ
           )
+          saveRDS(MLPE, file=paste0(results_ss, "/", "Distance", "_MLPE.SS.rds"), compress=TRUE)
           
-          cd.list[[i + 1]] <- as.matrix(cd)
-          names(cd.list)[i + 1] <- "Distance"
+          CD<- as.matrix(cd)
+          saveRDS(CD, file=paste0(results_ss, "/", "Distance", "_CD.SS.rds"), compress=TRUE)
+          #names(cd.list)[i + 1] <- "Distance"
           
-          names(MLPE.list)[i + 1] <- "Distance"
+          #names(MLPE.list)[i + 1] <- "Distance"
           
           ROW <- nrow(gdist.inputs$ID)
           k <- 2
           
-          k.list[[i + 1]] <- k
-          names(k.list)[i + 1] <- 'Distance'
+          #k.list[[i + 1]] <- k
+          #names(k.list)[i + 1] <- 'Distance'
+          saveRDS(k, file=paste0(results_ss, "/", "Distance", "_K.SS.rds"), compress=TRUE)
           
           if (GA.inputs$method == "AIC") {
             dist.obj <- -Dist.AIC
@@ -1883,6 +1240,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
             "R2c",
             "LL"
           )
+          saveRDS(Dist.AICc, file=paste0(results_ss, "/", 'Dist.AICc', ".SS.rds"), compress=TRUE)
         }
         
         if (null_mod == TRUE) {
@@ -1937,17 +1295,340 @@ SS_optim_worker <- function(CS.inputs = NULL,
               "R2c",
               "LL"
             )
+          saveRDS(Null.AICc, file=paste0(results_ss, "/", 'Null.AICc', ".SS.rds"), compress=TRUE)
         }
       }
-    }
-    #write Rdata outputs
-    saveRDS(RESULTS.cat, file=paste0(myproc + "_results_cat.Rdata"), compress=TRUE)
-    saveRDS(RESULTS.cont, file=paste0(myproc + "_results_cont.Rdata"), compress=TRUE)
-    saveRDS(MLPE.list, file=paste0(myproc + "_results_MLPE-list.Rdata"), compress=TRUE)
-    saveRDS(cd.list, file=paste0(myproc + "_results_cd-list.Rdata"), compress=TRUE)
-    saveRDS(k.list, file=paste0(myproc + "_results_k-list.Rdata"), compress=TRUE)
   } # Close ascii loop
 }
+
+
+
+
+
+####################################################
+#
+# Above is the "worker" code... Needs to write some Rdata
+#
+# for the below "gather" code to then load.
+#
+#
+#
+####################################################
+
+
+
+
+
+SS_optim_gather <- function(CS.inputs = NULL,
+                            gdist.inputs = NULL,
+                            GA.inputs,
+                            nlm = FALSE,
+                            dist_mod = TRUE,
+                            null_mod = TRUE,
+                            max.combination) {
+  
+  
+  if(!exists('gdist.inputs'))
+    return(cat("ERROR: Please specify gdist.inputs"))
+  
+  if(!exists('GA.inputs'))
+    return(cat("ERROR: Please specify GA.inputs"))
+  
+  # Create combination list -------------------------------------------------
+  mc <- max.combination
+  
+  if(length(max.combination) == 2) {
+    if(mc[1] == 1) {
+      min.combination <- 2
+      max.combination <- mc[2]
+      ss <- TRUE
+    } else {
+      min.combination <- mc[1]
+      max.combination <- mc[2]
+      ss <- FALSE
+    } 
+  } else {
+    min.combination <- 2
+    ss <- TRUE
+  }
+  
+  if(max.combination > GA.inputs$n.layers) {
+    max.combination <- GA.inputs$n.layers
+  }
+  comb.list <- vector(mode = "list", length = (max.combination - 1))
+  
+  
+  list.count <- 0
+  surface.count <- 0
+  for(i in min.combination:max.combination) {
+    list.count <- list.count + 1
+    comb.list[[list.count]] <- t(combn(1:GA.inputs$n.layers, i))
+    if(is.null(nrow(comb.list[[list.count]]))) {
+      n.comb <- 1
+    } else {
+      n.comb <- nrow(comb.list[[list.count]])
+    }
+    surface.count <- surface.count + n.comb
+  }
+  
+  all.combs <- list()
+  comb.names <- list()
+  row.index <- 0
+  for(i in 1:length(comb.list)){
+    combs <- comb.list[[i]]
+    
+    if(is.null(nrow(comb.list[[i]]))) {
+      t.combs <- 1
+    } else {
+      t.combs <- nrow(comb.list[[i]])
+    }
+    
+    for(j in 1:t.combs) {
+      row.index <- row.index + 1
+      all.combs[[row.index]] <- combs[j,]
+      c.names <- GA.inputs$layer.names[combs[j,]]
+      comb.names[[row.index]] <- paste(c.names, collapse = ".")
+    }
+  }
+  
+  GA.input_orig <- GA.inputs
+  
+  Results <- vector(mode = 'list', length = 1)
+  
+  # Make results data frame
+  Results.cat <- data.frame()
+  Results.cont <- data.frame()
+  # cnt1<-0
+  # cnt2<-0
+  results_ss <- paste0(GA.inputs$Results.dir, "/single.surface")
+
+  Results.cat<- list.files(full.names = TRUE, path=results_ss, 
+                           pattern = "*_RESULTS_CAT.SS.rds$") %>%
+                map_dfr(readRDS) %>% 
+                bind_rows()
+  
+  Results.cont<- list.files(full.names = TRUE, path=results_ss, 
+                           pattern = "*_RESULTS_CONT.SS.rds$") %>%
+                map_dfr(readRDS) %>% 
+                bind_rows()
+  
+
+  ##################################
+  # Compile results into tables
+  cat("\n")
+  cat("\n")
+  if (nrow(Results.cat) > 0) {
+    Features <- array()
+    for (i in 1:ncol(Results.cat) - 8) {
+      feature <- paste0("Feature", i)
+      Features[i] <- feature
+    }
+    colnames(Results.cat) <-
+      c(
+        "Surface",
+        paste0("obj.func_", GA.inputs$method),
+        'k',
+        "AIC",
+        "AICc",
+        "R2m",
+        "R2c",
+        "LL",
+        Features
+      )
+    Results.cat <-  Results.cat[order(Results.cat$AICc), ]
+    write.table(
+      Results.cat,
+      paste0(results_ss, "/", "CategoricalResults.csv"),
+      sep = ",",
+      col.names = T,
+      row.names = F
+    )
+  }
+  
+  if (ncol(Results.cont) > 0) {
+    colnames(Results.cont) <-
+      c(
+        "Surface",
+        paste0("obj.func_", GA.inputs$method),
+        'k',
+        "AIC",
+        "AICc",
+        "R2m",
+        "R2c",
+        "LL",
+        "Equation",
+        "shape",
+        "max"
+      )
+    Results.cont <- Results.cont[order(Results.cont$AICc), ]
+    write.table(
+      Results.cont,
+      paste0(results_ss, "/", "ContinuousResults.csv"),
+      sep = ",",
+      col.names = T,
+      row.names = F
+    )
+  }
+  
+  # Full Results
+  if (nrow(Results.cat) > 0 & nrow(Results.cont) > 0) {
+    Results.All <- rbind(Results.cat[, c(1:8)], Results.cont[, c(1:8)])
+  } else if (nrow(Results.cat) < 1 & nrow(Results.cont) > 0) {
+    Results.All <- (Results.cont[, c(1:8)])
+  } else {
+    Results.All <- (Results.cat[, c(1:8)])
+  }
+  
+  if (dist_mod == TRUE){
+    Dist.AICc<-readRDS(file=paste0(results_ss, "/Dist.AICc.SS.rds"))
+    Results.All <- rbind(Results.All, Dist.AICc)
+  }
+  if (null_mod == TRUE){
+    Null.AICc<-readRDS(file=paste0(results_ss, "/Null.AICc.SS.rds"))
+    Results.All <- rbind(Results.All, Null.AICc)
+  }
+  
+  Results.All <- Results.All[order(Results.All$AICc), ]
+  
+  cat("\n")
+  cat("\n")
+  write.table(
+    Results.All,
+    paste0(results_ss, "/", "All_Results_Table_", gdist.inputs$method,".csv"),
+    
+    sep = ",",
+    col.names = T,
+    row.names = F
+  )
+  
+  # Get parameter estimates
+  if (!is.null(CS.inputs)) {
+    MLPE.results <- MLPE.lmm_coef(
+      resistance = results_ss,
+      genetic.dist = CS.inputs$response,
+      out.dir = results_ss,
+      method = "cs",
+      ID = CS.inputs$ID,
+      ZZ = CS.inputs$ZZ
+    )
+    
+  } else {
+    MLPE.results <- MLPE.lmm_coef(
+      resistance = results_ss,
+      genetic.dist = gdist.inputs$response,
+      out.dir = results_ss,
+      method = "gd",
+      ID = gdist.inputs$ID,
+      ZZ = gdist.inputs$ZZ
+    )
+  }
+  
+  read_stuff <- function(f, p){
+    dat<- readRDS(f)
+    name<-str_replace(basename(f), p, "")
+    return(data.frame(name, dat))
+  }
+  read_stuff_name <- function(f, p){
+    name<-str_replace(basename(f), p, "")
+    return(name)
+  }
+  read_stuff_dat <- function(f, p){
+    dat<- readRDS(f)
+    name<-str_replace(basename(f), p, "")
+    return(dat)
+  }
+  
+  k.list <- list.files(full.names = TRUE, path=results_ss, 
+                            pattern = "*_K.SS.rds$")
+  k.list <- lapply(k.list, read_stuff, "_K.SS.rds")
+  k.list <- plyr::ldply(k.list)
+  colnames(k.list) <- c("surface", "k")
+  
+  cd.list <- list.files(full.names = TRUE, path=results_ss, 
+                       pattern = "*_CD.SS.rds$")
+  vals <- lapply(cd.list, read_stuff_dat, "_CD.SS.rds")
+  names <- lapply(cd.list, read_stuff_name, "_CD.SS.rds")
+  cd.list<-vals
+  names(cd.list)<-names
+  
+  MLPE.list <- list.files(full.names = TRUE, path=results_ss, 
+                        pattern = "*_MLPE.SS.rds$")
+  vals <- lapply(MLPE.list, read_stuff_dat, "_MLPE.SS.rds")
+  names <- lapply(MLPE.list, read_stuff_name, "_MLPE.SS.rds")
+  MLPE.list<-vals
+  names(MLPE.list)<-names
+  
+  saveRDS(k.list, file=paste0(results_ss, "/single_surface_K.ALL.RDS"))
+  saveRDS(MLPE.list, file=paste0(results_ss, "/single_surface_MLPE.ALL.RDS"))
+  saveRDS(cd.list, file=paste0(results_ss, "/single_surface_CD.ALL.RDS"))
+  
+  # Full Results
+  if (nrow(Results.cat) > 0 & nrow(Results.cont) > 0) {
+    RESULTS <-
+      list(
+        ContinuousResults = Results.cont,
+        CategoricalResults = Results.cat,
+        AICc = Results.All,
+        MLPE = MLPE.results,
+        Run.Time = NULL,
+        MLPE.list = MLPE.list,
+        cd = cd.list,
+        k = k.list
+      )
+    
+  } else if (nrow(Results.cat) < 1 & nrow(Results.cont) > 0) {
+    RESULTS <-
+      list(
+        ContinuousResults = Results.cont,
+        CategoricalResults = NULL,
+        AICc = Results.All,
+        MLPE = MLPE.results,
+        Run.Time = rt,
+        MLPE.list = MLPE.list,
+        cd = cd.list,
+        k = k.list
+      )
+    
+  } else if (nrow(Results.cat) > 0 & nrow(Results.cont) < 1) {
+    RESULTS <-
+      list(
+        ContinuousResults = NULL,
+        CategoricalResults = Results.cat,
+        AICc = Results.All,
+        MLPE = MLPE.results,
+        Run.Time = rt,
+        MLPE.list = MLPE.list,
+        cd = cd.list,
+        k = k.list
+      )
+  } else {
+    RESULTS <-
+      list(
+        ContinuousResults = NULL,
+        CategoricalResults = NULL,
+        AICc = Results.All,
+        MLPE = MLPE.results,
+        Run.Time = rt,
+        MLPE.list = MLPE.list,
+        cd = cd.list,
+        k = k.list
+      )
+  }
+  
+  unlink(GA.inputs$Write.dir, recursive = T, force = T)
+  return(RESULTS)
+  ###############################################################################################################
+}
+
+
+
+
+
+
+
+
+
+
 
 #first step, parallel single-surface optimizations
 all_comb_pipeline_SS <- function(gdist.inputs,
@@ -1961,11 +1642,8 @@ all_comb_pipeline_SS <- function(gdist.inputs,
                                  sample.prop = 0.75,
                                  nlm = FALSE,
                                  dist_mod = TRUE,
-                                 null_mod = TRUE, 
-                                 RUN_NAME = "Run1") {
+                                 null_mod = TRUE) {
   
-  if(!exists('results.dir')) 
-    return(cat("ERROR: An empty results directory must be specified"))
   
   if(!exists('gdist.inputs')) 
     return(cat("ERROR: Please specify gdist.inputs"))
@@ -1973,25 +1651,9 @@ all_comb_pipeline_SS <- function(gdist.inputs,
   if(!exists('GA.inputs')) 
     return(cat("ERROR: Please specify GA.inputs"))
   
-  if(!is.null(GA.inputs$Results.dir) & 
-     !is.null(GA.inputs$Write.dir) &
-     !is.null(GA.inputs$Plots.dir)) {
-    return(cat("ERROR: Please correctly specify the `Results.dir` as 'all.comb' when running GA.prep"))
-  }
   
   if(length(max.combination) > 2) {
     return(cat("ERROR: Please specify either a single value or a vector with the minimum and maximum value"))
-  }
-  
-  dir.files <- list.files(results.dir)
-  if(length(dir.files) != 0) {
-    q <- TRUE
-    
-    if(q) { # Create subdir
-      dir.NAME <- RUN_NAME
-      dir.create(path = paste0(results.dir, "all_comb_", dir.NAME))
-      results.dir <- paste0(results.dir, "all_comb_", dir.NAME, "/")
-    } 
   }
   
   # if(length(max.combination) == 2) {
@@ -2063,75 +1725,13 @@ all_comb_pipeline_SS <- function(gdist.inputs,
   Results <- vector(mode = 'list', length = replicate)
   
   # Begin Replicate Loop --------------------------------------------------
-  num_jobs <- replicate * GA.inputs$n.layers
-  if (num_jobs < procs){
-    procs = num_jobs
-    floorjobs = 1
-    remainsjobs = 0
-  }else{
-    floorjobs <- floor(num_jobs / procs)
-    remainjobs <- num_jobs %% procs #last proc has to take these too
-  }
-  if (procnum > procs){
-    exit(paste0("Proc number ", procnum, " not needed (only ", numjobs, " and ", procs, " available processes)"))
-  }
-  
-  assignments <- list()
-  indices <- list()
-  jcount<-1
-  pcount<-1
-  for(i in 1:replicate){
-    temp<-vector()
-    itemp<-vector()
-    for( j in 1:GA.inputs$n.layers){
-      itemp[[j]] <- j
-      if (pcount == procs){
-        #print(1)
-        temp[[j]] <- pcount
-      }else if (jcount == floorjobs){
-        #print(2)
-        temp[[j]] = pcount
-        jcount = 1
-        pcount= pcount + 1
-      }else{
-        #print(3)
-        temp[[j]] <- pcount
-        jcount = jcount + 1
-      }
-    }
-    assignments[[i]]<-temp
-    indices[[i]]<-itemp
-  }
-  print(assignments)
-  print(indices)
-  
-  print(paste0("My process number is " , procnum , " of " , procs , " processes!\n"))
-  if (procnum != procs){
-    print(paste0("I'm responsible for " , toString(floorjobs) , " single-surface optimizations!\n"))
-  }else{
-    print(paste0("I'm responsible for " , toString(floorjobs+remainjobs) , " single-surface optimizations!\n"))
-  }
-  
-  for(i in 1:replicate){
-    assigns <- assignments[[i]]
-    ind       <- indices[[i]]
-    #skip if my proc has no jobs in this replicate
-    if (!procnum %in% assigns){ next }
-    #print(assigns)
-    myname <- paste0("rep",i,"_",procnum)
-    myjobs <- ind[assigns == procnum]
-    #print(myname)
-    print(paste(c("My job indices in Replicate", i, ": ", myjobs), collapse=" "))
-    
+
     # Skip if min combination > 1
     if(ss == FALSE) {
       ss.results <- NULL
       AICc.tab <- NULL
-      dir.create(paste0(results.dir,'rep_',i))
+      #dir.create(paste0(results.dir,'rep_',i))
     } else {  # Do single surface optimization
-      dir.create(paste0(results.dir,'rep_',i))
-      dir.create(paste0(results.dir,'rep_',i, "/", "single.surface"))
-      dir.create(paste0(results.dir,'rep_',i, "/", "single.surface/", "Plots"))
       
       # Single Surface optimization -----------------------------------------------------
       if(!is.null(GA.inputs$scale)) {
@@ -2139,18 +1739,6 @@ all_comb_pipeline_SS <- function(gdist.inputs,
           "all_comb_pipeline_SS  NOT WORKING YET FOR SCALED SURFACE OPTIMIZATION. EMAIL tkchafin@uark.edu FOR MORE INFORMATION"
         )
         # * Single Surface: scaled --------------------------------------------------------
-        
-        # Update GA.input directories
-        GA.inputs$Plots.dir <- paste0(results.dir,
-                                      'rep_',i,
-                                      "/",
-                                      "single.surface/",
-                                      "Plots/")
-        
-        GA.inputs$Results.dir <- paste0(results.dir,
-                                        'rep_',i,
-                                        "/",
-                                        "single.surface/")
         
         ss.results <- SS_optim.scale(gdist.inputs = gdist.inputs,
                                      GA.inputs = GA.inputs,
@@ -2161,70 +1749,15 @@ all_comb_pipeline_SS <- function(gdist.inputs,
         AICc.tab <- ss.results$AICc
       } else {
         # * Single Surface --------------------------------------------------------
-        
-        # Update GA.input directories
-        GA.inputs$Plots.dir <- paste0(results.dir,
-                                      'rep_',i,
-                                      "/",
-                                      "single.surface/",
-                                      "Plots/")
-        
-        GA.inputs$Results.dir <- paste0(results.dir,
-                                        'rep_',i,
-                                        "/",
-                                        "single.surface/")
-        
         ss.results <- SS_optim_worker(gdist.inputs = gdist.inputs,
                                       GA.inputs = GA.inputs,
                                       nlm = nlm,
                                       dist_mod = dist_mod,
-                                      null_mod = null_mod,
-                                      jobs = myjobs,
-                                      myproc = myname)
+                                      null_mod = null_mod)
         #NEXT: Call SS_optim_gather
         #THEN: Continue pipeline for MS optimizations
         AICc.tab <- ss.results$AICc
       }
     }
-  } # End function
 }
-
-files <- list.files(path=".", pattern="*reduce.proj.tif$", full.names=TRUE, recursive=FALSE)
-surfaces <- raster::stack(paste0(BASE, "/", files))
-
-samples <- read.table(file = 'wtd_mz_list.tsv', sep = '\t', header = TRUE)
-sample.locales <- SpatialPoints(samples[,c(14,15)])
-
-print(paste0("Proc ", MYPROC, " prepping inputs [GA.prep()]..."))
-GA.inputs <- GA.prep(ASCII.dir = surfaces,
-                     Results.dir = "all_comb",
-                     method = 'LL',
-                     max.cat = 500,
-                     max.cont = 500,
-                     seed = NULL,
-                     parallel = CORES,
-                     quiet = FALSE,
-                     # this value should be justified
-                     k.value = 3)
-
-
-gdist.inputs <- gdist.prep(length(sample.locales),
-                           samples = sample.locales,
-                           method = 'commuteDistance') # Optimize using commute distance
-
-
-print(paste0("Proc ", MYPROC, " doing work [all_comb_pipeline_SS()]..."))
-comb.analysis <- all_comb_pipeline_SS(gdist.inputs,
-                                      GA.inputs,
-                                      all.comb,
-                                      MYPROC,
-                                      PROCS,
-                                      max.combination = 3,
-                                      iters = 1000,
-                                      replicate = 1,
-                                      sample.prop = 0.75,
-                                      nlm = FALSE,
-                                      dist_mod = TRUE,
-                                      null_mod = TRUE,
-                                      RUN_NAME = "Run1")
 
