@@ -119,7 +119,8 @@ GA.prep <- function(ASCII.dir,
                     pop.size = NULL,
                     parallel = FALSE,
                     seed = NULL,
-                    quiet = FALSE) {
+                    quiet = FALSE,
+                    Plots.dir=Plotdir) {
   if(scale == FALSE) {
     scale <- NULL
   }
@@ -168,17 +169,19 @@ GA.prep <- function(ASCII.dir,
   }
 
   #if(Results.dir != 'all.comb' & Results.dir != 'all_comb') {
-    if ("Results" %in% dir(Results.dir) == FALSE)
-      dir.create(file.path(Results.dir, "Results"))
-    Results.DIR <- paste0(Results.dir, "/Results/")
+    #if ("Results" %in% dir(Results.dir) == FALSE)
+  #    dir.create(file.path(Results.dir, "Results"))
+   # Results.DIR <- paste0(Results.dir, "/Results/")
 
-    if ("tmp" %in% dir(Results.dir) == FALSE)
-      dir.create(file.path(Results.dir, "tmp"))
+  #  if ("tmp" %in% dir(Results.dir) == FALSE)
+  #    dir.create(file.path(Results.dir, "tmp"))
     Write.dir <- paste0(Results.dir, "/tmp/")
-
-    if ("Plots" %in% dir(Results.dir) == FALSE)
-      dir.create(file.path(Results.dir, "Plots"))
-    Plots.dir <- paste0(Results.dir, "/Plots/")
+    dir.create(Write.dir)
+    Plots.dir <- paste0(Plots.dir, "/Plots/")
+    dir.create(Plots.dir)
+  #  if ("Plots" %in% dir(Results.dir) == FALSE)
+  #    dir.create(file.path(Results.dir, "Plots"))
+  #  Plots.dir <- paste0(Results.dir, "/Plots/")
   #}
 
   #if(Results.dir == 'all.comb' | Results.dir == 'all_comb') {

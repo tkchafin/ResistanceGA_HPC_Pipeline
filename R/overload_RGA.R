@@ -13,11 +13,9 @@ SS_optim_worker <- function(CS.inputs = NULL,
       "This function should NOT be used if you intend to apply kernel smoothing to your resistance surfaces"
     )
   }
-  results_ss <- paste0(GA.inputs$Results.dir, "/single.surface")
-  dir.create(results_ss)
-  print(paste0("Result dir: ",results_ss))
-  print(paste0("Plots dir: ",GA.inputs$Plots.dir))
-  print(paste0("Write dir: ",GA.inputs$Write.dir))
+  results_ss <- getwd()
+  Plots.dir<-GA.inputs$Plots.dir
+
   
   
   #RESULTS.cat <- list() # List to store categorical results within
@@ -247,7 +245,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 get.best = FALSE,
                 CS.inputs = CS.inputs,
                 Min.Max = 'min',
-                write.dir = GA.inputs$Write.dir
+                write.dir = results_ss
               )
             
             OPTIM <-
@@ -353,7 +351,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 "_resistances.out"
               ),
               genetic.dist = CS.inputs$response,
-              plot.dir = GA.inputs$Plots.dir,
+              plot.dir = Plots.dir,
               type = "continuous",
               ID = CS.inputs$ID,
               ZZ = CS.inputs$ZZ
@@ -363,7 +361,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               PARM = single.GA@solution[-1],
               Resistance = GA.inputs$Resistance.stack[[i]],
               transformation = EQ,
-              print.dir = GA.inputs$Plots.dir
+              print.dir = Plots.dir
             )
             
             fit.stats <- r.squaredGLMM(
@@ -553,7 +551,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
           Diagnostic.Plots(
             resistance.mat = cd,
             genetic.dist = gdist.inputs$response,
-            plot.dir = GA.inputs$Plots.dir,
+            plot.dir = Plots.dir,
             type = "categorical",
             name = NAME,
             ID = gdist.inputs$ID,
@@ -711,7 +709,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
                 get.best = FALSE,
                 gdist.inputs = gdist.inputs,
                 Min.Max = 'min',
-                write.dir = GA.inputs$Write.dir
+                write.dir = results_ss
               )
             
             r <-
@@ -749,7 +747,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
             Diagnostic.Plots(
               resistance.mat = cd,
               genetic.dist = gdist.inputs$response,
-              plot.dir = GA.inputs$Plots.dir,
+              plot.dir = Plots.dir,
               type = "continuous",
               name = NAME,
               ID = gdist.inputs$ID,
@@ -760,7 +758,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               PARM = exp(Optim.nlm$estimate),
               Resistance = GA.inputs$Resistance.stack[[i]],
               transformation = EQ,
-              print.dir = GA.inputs$Plots.dir,
+              print.dir = Plots.dir,
               Name = GA.inputs$layer.names[i]
             )
             
@@ -853,7 +851,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
             Diagnostic.Plots(
               resistance.mat = cd,
               genetic.dist = gdist.inputs$response,
-              plot.dir = GA.inputs$Plots.dir,
+              plot.dir = Plots.dir,
               type = "continuous",
               name = NAME,
               ID = gdist.inputs$ID,
@@ -864,7 +862,7 @@ SS_optim_worker <- function(CS.inputs = NULL,
               PARM = single.GA@solution[-1],
               Resistance = GA.inputs$Resistance.stack[[i]],
               transformation = EQ,
-              print.dir = GA.inputs$Plots.dir
+              print.dir = Plots.dir
             )
             
             fit.stats <-
@@ -1369,7 +1367,8 @@ all_comb_pipeline_SS <- function(gdist.inputs,
                                  sample.prop = 0.75,
                                  nlm = FALSE,
                                  dist_mod = TRUE,
-                                 null_mod = TRUE) {
+                                 null_mod = TRUE,
+                                 Plots.dir) {
   
   
   if(!exists('gdist.inputs')) 
@@ -1414,39 +1413,6 @@ all_comb_pipeline_SS <- function(gdist.inputs,
   comb.list <- vector(mode = "list", length = (max.combination - 1))
   
   
-  list.count <- 0
-  surface.count <- 0
-  for(i in min.combination:max.combination) {
-    list.count <- list.count + 1
-    comb.list[[list.count]] <- t(combn(1:GA.inputs$n.layers, i))
-    if(is.null(nrow(comb.list[[list.count]]))) {
-      n.comb <- 1
-    } else {
-      n.comb <- nrow(comb.list[[list.count]])
-    }
-    surface.count <- surface.count + n.comb
-  }
-  
-  all.combs <- list()
-  comb.names <- list()
-  row.index <- 0
-  for(i in 1:length(comb.list)){
-    combs <- comb.list[[i]]
-    
-    if(is.null(nrow(comb.list[[i]]))) {
-      t.combs <- 1
-    } else {
-      t.combs <- nrow(comb.list[[i]])
-    }
-    
-    for(j in 1:t.combs) {
-      row.index <- row.index + 1
-      all.combs[[row.index]] <- combs[j,]
-      c.names <- GA.inputs$layer.names[combs[j,]]
-      comb.names[[row.index]] <- paste(c.names, collapse = ".")
-    }
-  }
-  
   GA.input_orig <- GA.inputs
   
   Results <- vector(mode = 'list', length = replicate)
@@ -1476,6 +1442,7 @@ all_comb_pipeline_SS <- function(gdist.inputs,
         AICc.tab <- ss.results$AICc
       } else {
         # * Single Surface --------------------------------------------------------
+        
         ss.results <- SS_optim_worker(gdist.inputs = gdist.inputs,
                                       GA.inputs = GA.inputs,
                                       nlm = nlm,

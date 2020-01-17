@@ -3,7 +3,7 @@
  * Author       :
  *      Tyler K. Chafin
  *      tkchafin@uark.edu
- #
+ *
  *  Written as a part of funded research
  *  by the Arkansas Game and Fish Commission
  *  building predictive models to understand
@@ -21,32 +21,37 @@
  *
  */
 
-process prep_dirs{
+rasters = Channel.fromPath(params.rasters)
 
-    input:
-    val x from 1..params.replicates
-
-    output:
-    file("${params.all_comb}/rep_*") into rep_dirs
-
-    script:
-    """
-    mkdir -p $params.all_comb"/rep_"$x
-    """
-}
 
 process ss_optimization{
 
     input:
-    file rep from rep_dirs
+    file r from rasters
 
     output:
-    file("${rep}/single.surface") into ss_dirs
+    file("*RESULTS_*.SS.rds") into ss_results
+    file("*_K.SS.rds") into k_list
+    file("*_CD.SS.rds") into cd_list
+    file("*_MLPE.SS.rds") into mlpe_results
 
     script:
     """
-    echo $rep
-    mkdir $rep"/single.surface"
+    Rscript --vanilla ${params.code_dir}/bin/pipeline_1_SSoptimization.R $workflow.workDir 4 $params.R_source_dir $params.gen_dist $params.coords $params.max_iter $r
+    """
+}
+
+process ss_gather{
+
+    input:
+    file ss from ss_results.collect()
+
+    output:
+    file("single_surface.RESULTS_ALL.rds") into ss_results_gathered
+
+    script:
+    """
+
     """
 
 }
