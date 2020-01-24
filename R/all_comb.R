@@ -407,6 +407,7 @@ all_comb <- function(gdist.inputs,
         # sc.surf <- GA.input_orig$inputs$scale.surfaces[all.combs[[j]]]
         
         # Update GA.input 
+        print(GA.input_orig$inputs$max.cont)
         GA.inputs <- GA.prep(ASCII.dir = asc.comb,
                              Results.dir = 'all.comb',
                              min.cat = GA.input_orig$inputs$min.cat,

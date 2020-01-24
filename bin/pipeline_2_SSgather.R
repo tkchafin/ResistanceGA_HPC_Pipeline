@@ -28,23 +28,20 @@ args <- commandArgs(trailingOnly=TRUE)
 #  quit()
 #}
 
-WD<-args[1] #working directory
-all.comb<-args[2] #output directory name (e.g. all_comb/Run1/rep_1)
-RSRC<-args[3] #path to R scripts to source
+#WD<-args[1] #working directory
+#all.comb<-args[2] #output directory name (e.g. all_comb/Run1/rep_1)
+WD<-args[1]
+RSRC<-args[2] #path to R scripts to source
+#FILES<-args[3:length(args)]
 
-setwd(WD)
-print(WD)
-
-if(!file.exists(all.comb)){
-  dir.create(all.comb, recursive=T)
-}
+#print(FILES)
 
 #source the R files
-file.sources = list.files(path=paste0(RSRC), pattern="*.R")
+file.sources = list.files(path=paste0(RSRC), pattern="*.R$")
 sapply(paste0(RSRC, "/", file.sources),source)
 
-gdist.inputs <- readRDS(paste0(all.comb, "/", "gdist-inputs.rds"))
-GA.inputs <- readRDS(paste0(all.comb, "/", "GA-inputs.rds"))
+gdist.inputs <- readRDS(paste0(WD, "/", "gdist-inputs.rds"))
+GA.inputs <- readRDS(paste0(WD, "/", "GA-inputs.rds"))
 
 #gather SS results
 ss_full_results <- SS_optim_gather(gdist.inputs = gdist.inputs,
@@ -52,5 +49,6 @@ ss_full_results <- SS_optim_gather(gdist.inputs = gdist.inputs,
                                    nlm = FALSE,
                                    dist_mod = TRUE,
                                    null_mod = TRUE,
-                                   max.combination=12)
-saveRDS(ss_full_results, file=paste0(results_ss, "/single_surface_RESULTS.ALL.RDS"))
+                                   max.combination=12,
+                                   results_ss=WD)
+saveRDS(ss_full_results, file="single_surface.RESULTS_ALL.rds")

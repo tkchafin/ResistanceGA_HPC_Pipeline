@@ -10,9 +10,10 @@
 
 #' @export
 #' @author Bill Peterman <Bill.Peterman@@gmail.com>
-MS_optim <- function(CS.inputs = NULL,
+MS_pipeline_optim <- function(CS.inputs = NULL,
                      gdist.inputs = NULL,
-                     GA.inputs) {
+                     GA.inputs, 
+                     NAME = NULL) {
   if (!is.null(GA.inputs$scale)) {
     stop(
       "This function should NOT be used if you intend to apply kernel smoothing to your resistance surfaces"
@@ -89,7 +90,7 @@ MS_optim <- function(CS.inputs = NULL,
     p.cont <- RAST$percent.contribution
     RAST <- RAST$combined.surface
     
-    NAME <- paste(GA.inputs$parm.type$name, collapse = ".")
+    #NAME <- paste(GA.inputs$parm.type$name, collapse = ".")
     names(RAST) <- NAME
     Run_CS(
       CS.inputs,
@@ -104,7 +105,7 @@ MS_optim <- function(CS.inputs = NULL,
            type <- "categorical")
     
     Diagnostic.Plots(
-      resistance.mat = paste0(GA.inputs$Results.dir, NAME, "_resistances.out"),
+      resistance.mat = paste0(NAME, "_resistances.out"),
       genetic.dist = CS.inputs$response,
       plot.dir = GA.inputs$Plots.dir,
       type = type,
@@ -115,7 +116,7 @@ MS_optim <- function(CS.inputs = NULL,
     fit.stats <-
       r.squaredGLMM(
         MLPE.lmm(
-          resistance = paste0(GA.inputs$Results.dir, NAME, "_resistances.out"),
+          resistance = paste0(NAME, "_resistances.out"),
           pairwise.genetic = CS.inputs$response,
           REML = F,
           ID = CS.inputs$ID,
@@ -126,7 +127,7 @@ MS_optim <- function(CS.inputs = NULL,
     aic <-
       AIC(
         MLPE.lmm(
-          resistance = paste0(GA.inputs$Results.dir, NAME, "_resistances.out"),
+          resistance = paste0(NAME, "_resistances.out"),
           pairwise.genetic = CS.inputs$response,
           REML = F,
           ID = CS.inputs$ID,
@@ -137,7 +138,7 @@ MS_optim <- function(CS.inputs = NULL,
     LL <-
       logLik(
         MLPE.lmm(
-          resistance = paste0(GA.inputs$Results.dir, NAME, "_resistances.out"),
+          resistance = paste0(NAME, "_resistances.out"),
           pairwise.genetic = CS.inputs$response,
           REML = F,
           ID = CS.inputs$ID,
@@ -147,7 +148,7 @@ MS_optim <- function(CS.inputs = NULL,
     
     MLPE.model <-
       MLPE.lmm(
-        resistance = paste0(GA.inputs$Results.dir, NAME, "_resistances.out"),
+        resistance = paste0(NAME, "_resistances.out"),
         pairwise.genetic = CS.inputs$response,
         REML = F,
         ID = CS.inputs$ID,
@@ -155,7 +156,6 @@ MS_optim <- function(CS.inputs = NULL,
       )
     
     cd <- (read.table(paste0(
-      GA.inputs$Results.dir,
       NAME,
       "_resistances.out"))[-1, -1])
     
@@ -308,18 +308,18 @@ MS_optim <- function(CS.inputs = NULL,
     p.cont <- RAST$percent.contribution
     RAST <- RAST$combined.surface
     
-    NAME <- paste(GA.inputs$parm.type$name, collapse = ".")
+    #NAME <- paste(GA.inputs$parm.type$name, collapse = ".")
     names(RAST) <- NAME
     cd <- Run_gdistance(gdist.inputs, RAST)
     write.table(
       as.matrix(cd),
-      file = paste0(GA.inputs$Results.dir, NAME, "_", gdist.inputs$method,"_distMat.csv"),
+      file = paste0(NAME, "_", gdist.inputs$method,"_distMat.csv"),
       sep = ",",
       row.names = F,
       col.names = F
     )
     writeRaster(RAST,
-                paste0(GA.inputs$Results.dir, NAME, ".asc"),
+                paste0(NAME, ".asc"),
                 overwrite = TRUE)
     
     ifelse(length(unique(RAST)) > 15,
@@ -412,7 +412,7 @@ MS_optim <- function(CS.inputs = NULL,
       LL = LL[[1]]
     )
     
-    write.table(p.cont, file = paste0(GA.inputs$Results.dir, "Percent_Contribution.csv"), sep = ",",
+    write.table(p.cont, file = paste0("Percent_Contribution.csv"), sep = ",",
                 row.names = F,
                 col.names = T)
     
@@ -420,7 +420,7 @@ MS_optim <- function(CS.inputs = NULL,
     #      file = paste0(GA.inputs$Results.dir, NAME, ".rda"))
     
     saveRDS(multi.GA_nG, 
-            file = paste0(GA.inputs$Results.dir, NAME, ".rds"))
+            file = paste0(NAME, ".rds"))
     
     unlink(GA.inputs$Write.dir, recursive = T, force = T)
     

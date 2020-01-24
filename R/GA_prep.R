@@ -120,21 +120,14 @@ GA.prep <- function(ASCII.dir,
                     parallel = FALSE,
                     seed = NULL,
                     quiet = FALSE,
-                    Plots.dir=Plotdir) {
+                    Plots.dir=NULL) {
   if(scale == FALSE) {
     scale <- NULL
   }
 
-
-  if ((class(ASCII.dir)[1] == 'RasterStack' |
-       class(ASCII.dir)[1] == 'RasterLayer') & is.null(Results.dir)) {
-    warning(paste0(
-      "'Results.dir' was not specified. Results will be exported to ",
-      getwd()
-    ))
-    Results.dir <- getwd()
-  }
-
+  
+  Results.dir <- Plots.dir
+  
   if (class(ASCII.dir)[1] != 'RasterStack' & is.null(Results.dir)) {
     Results.dir <- ASCII.dir
   }
@@ -175,7 +168,7 @@ GA.prep <- function(ASCII.dir,
 
   #  if ("tmp" %in% dir(Results.dir) == FALSE)
   #    dir.create(file.path(Results.dir, "tmp"))
-    Write.dir <- paste0(Results.dir, "/tmp/")
+    Write.dir <- paste0(Plots.dir, "/tmp/")
     dir.create(Write.dir)
     Plots.dir <- paste0(Plots.dir, "/Plots/")
     dir.create(Plots.dir)
@@ -335,7 +328,7 @@ GA.prep <- function(ASCII.dir,
 
     } else if (exists("cont.shape") && length(cont.shape > 0)) {
       SUGGESTS[[i]] <-
-        sv.cont.nG(cont.shape[1], pop.size = pop.size, max.cont, eqs = eqs[[i]])
+        sv.cont.nG(cont.shape[1], pop.size = pop.size, max=max.cont, eqs = eqs[[i]])
       cont.shape <- cont.shape[-1]
 
     } else if (!is.null(scale) && scale.surfaces[i] == 1) {
@@ -350,7 +343,7 @@ GA.prep <- function(ASCII.dir,
           eqs[[i]]
         )
     } else {
-      SUGGESTS[[i]] <- sv.cont.nG("NA", pop.size = pop.size, max.cont, eqs = eqs[[i]])
+      SUGGESTS[[i]] <- sv.cont.nG("NA", pop.size = pop.size, max=max.cont, eqs = eqs[[i]])
     }
   }
   SUGGESTS <-

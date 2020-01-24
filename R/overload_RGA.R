@@ -13,10 +13,12 @@ SS_optim_worker <- function(CS.inputs = NULL,
       "This function should NOT be used if you intend to apply kernel smoothing to your resistance surfaces"
     )
   }
-  results_ss <- getwd()
+  results_ss <- "."
   Plots.dir<-GA.inputs$Plots.dir
 
-  
+  if(!file.exists(results_ss)){
+    dir.create(results_ss, recursive=T)
+  }
   
   #RESULTS.cat <- list() # List to store categorical results within
   #RESULTS.cont <- list() # List to store continuous results within
@@ -986,15 +988,14 @@ SS_optim_worker <- function(CS.inputs = NULL,
 
 
 
-
-
 SS_optim_gather <- function(CS.inputs = NULL,
                             gdist.inputs = NULL,
                             GA.inputs,
                             nlm = FALSE,
                             dist_mod = TRUE,
                             null_mod = TRUE,
-                            max.combination) {
+                            max.combination,
+                            results_ss = NULL) {
   
   
   if(!exists('gdist.inputs'))
@@ -1003,65 +1004,6 @@ SS_optim_gather <- function(CS.inputs = NULL,
   if(!exists('GA.inputs'))
     return(cat("ERROR: Please specify GA.inputs"))
   
-  # Create combination list -------------------------------------------------
-  mc <- max.combination
-  
-  if(length(max.combination) == 2) {
-    if(mc[1] == 1) {
-      min.combination <- 2
-      max.combination <- mc[2]
-      ss <- TRUE
-    } else {
-      min.combination <- mc[1]
-      max.combination <- mc[2]
-      ss <- FALSE
-    } 
-  } else {
-    min.combination <- 2
-    ss <- TRUE
-  }
-  
-  if(max.combination > GA.inputs$n.layers) {
-    max.combination <- GA.inputs$n.layers
-  }
-  comb.list <- vector(mode = "list", length = (max.combination - 1))
-  
-  
-  list.count <- 0
-  surface.count <- 0
-  for(i in min.combination:max.combination) {
-    list.count <- list.count + 1
-    comb.list[[list.count]] <- t(combn(1:GA.inputs$n.layers, i))
-    if(is.null(nrow(comb.list[[list.count]]))) {
-      n.comb <- 1
-    } else {
-      n.comb <- nrow(comb.list[[list.count]])
-    }
-    surface.count <- surface.count + n.comb
-  }
-  
-  all.combs <- list()
-  comb.names <- list()
-  row.index <- 0
-  for(i in 1:length(comb.list)){
-    combs <- comb.list[[i]]
-    
-    if(is.null(nrow(comb.list[[i]]))) {
-      t.combs <- 1
-    } else {
-      t.combs <- nrow(comb.list[[i]])
-    }
-    
-    for(j in 1:t.combs) {
-      row.index <- row.index + 1
-      all.combs[[row.index]] <- combs[j,]
-      c.names <- GA.inputs$layer.names[combs[j,]]
-      comb.names[[row.index]] <- paste(c.names, collapse = ".")
-    }
-  }
-
-  
-    
   GA.input_orig <- GA.inputs
   
   Results <- vector(mode = 'list', length = 1)
@@ -1071,7 +1013,6 @@ SS_optim_gather <- function(CS.inputs = NULL,
   Results.cont <- data.frame()
   # cnt1<-0
   # cnt2<-0
-  results_ss <- paste0(GA.inputs$Results.dir, "/single.surface")
 
   Results.cat<- list.files(full.names = TRUE, path=results_ss, 
                            pattern = "*_RESULTS_CAT.SS.rds$") %>%
@@ -1170,7 +1111,7 @@ SS_optim_gather <- function(CS.inputs = NULL,
     } else {
       dist.obj <- LL[[1]]
     }
-    
+    k<-dist.k
     n <- gdist.inputs$n.Pops
     AICc <-
       (-2 * LL) + (2 * k) + (((2 * k) * (k + 1)) / (n - k - 1))
@@ -1454,4 +1395,274 @@ all_comb_pipeline_SS <- function(gdist.inputs,
       }
     }
 }
+
+
+
+#########################################
+#
+# all_comb_pipeline_MS
+#
+#
+#########################################
+all_comb_pipeline_make_batches <- function(gdist.inputs,
+                                 GA.inputs,
+                                 max.combination) {
+  
+  if(length(max.combination) > 2) {
+    return(cat("ERROR: Please specify either a single value or a vector with the minimum and maximum value"))
+  }
+  
+  # Create combination list -------------------------------------------------
+  max.combination<-as.numeric(max.combination)
+  mc <- max.combination
+  
+  if(length(max.combination) == 2) {
+    if(mc[1] == 1) {
+      min.combination <- 2
+      max.combination <- mc[2]
+      ss <- TRUE
+    } else {
+      min.combination <- mc[1]
+      max.combination <- mc[2]
+      ss <- FALSE
+    } 
+  } else {
+    min.combination <- 2
+    ss <- TRUE
+  }
+  
+  if(max.combination > GA.inputs$n.layers) {
+    max.combination <- GA.inputs$n.layers
+  }
+  comb.list <- vector(mode = "list", length = (max.combination - 1))
+  
+  list.count <- 0
+  surface.count <- 0
+  for(i in min.combination:max.combination) {
+    list.count <- list.count + 1
+    print(max.combination)
+    comb.list[[list.count]] <- t(combn(1:GA.inputs$n.layers, i))
+    if(is.null(nrow(comb.list[[list.count]]))) {
+      n.comb <- 1
+    } else {
+      n.comb <- nrow(comb.list[[list.count]])
+    }
+    surface.count <- surface.count + n.comb
+  }
+  
+  all.combs <- list()
+  comb.names <- list()
+  row.index <- 0
+  for(i in 1:length(comb.list)){
+    combs <- comb.list[[i]]
+    
+    if(is.null(nrow(comb.list[[i]]))) {
+      t.combs <- 1
+    } else {
+      t.combs <- nrow(comb.list[[i]])
+    }
+    
+    for(j in 1:t.combs) {
+      row.index <- row.index + 1
+      all.combs[[row.index]] <- combs[j,]
+      c.names <- GA.inputs$layer.names[combs[j,]]
+      comb.names[[row.index]] <- paste(c.names, collapse = ".")
+    }
+  }
+  
+  #all.combs is a list of combinations (models) to test
+  v<-c(seq(1:length(all.combs)))
+  write_lines(v, "ms.batch")
+}
+
+
+all_comb_pipeline_MS <- function(gdist.inputs,
+                     GA.inputs,
+                     results.dir,
+                     max.combination = NULL,
+                     iters = 1000,
+                     replicate = 1,
+                     sample.prop = 0.75,
+                     nlm = FALSE,
+                     dist_mod = TRUE,
+                     null_mod = TRUE, 
+                     cores = 1,
+                     my_job_index = NULL) {
+  
+  if(length(max.combination) > 2) {
+    return(cat("ERROR: Please specify either a single value or a vector with the minimum and maximum value"))
+  }
+  
+  # Create combination list -------------------------------------------------
+  max.combination<-as.numeric(max.combination)
+  my_job_index <- as.numeric(my_job_index)
+  mc <- max.combination
+  print(max.combination)
+  
+  if(length(max.combination) == 2) {
+    if(mc[1] == 1) {
+      min.combination <- 2
+      max.combination <- mc[2]
+      ss <- TRUE
+    } else {
+      min.combination <- mc[1]
+      max.combination <- mc[2]
+      ss <- FALSE
+    } 
+  } else {
+    min.combination <- 2
+    ss <- TRUE
+  }
+  print(GA.inputs)
+  if(max.combination > GA.inputs$n.layers) {
+    max.combination <- GA.inputs$n.layers
+  }
+  print(max.combination)
+  comb.list <- vector(mode = "list", length = (max.combination - 1))
+  
+  list.count <- 0
+  surface.count <- 0
+  for(i in min.combination:max.combination) {
+    list.count <- list.count + 1
+    print(max.combination)
+    comb.list[[list.count]] <- t(combn(1:GA.inputs$n.layers, i))
+    if(is.null(nrow(comb.list[[list.count]]))) {
+      n.comb <- 1
+    } else {
+      n.comb <- nrow(comb.list[[list.count]])
+    }
+    surface.count <- surface.count + n.comb
+  }
+  
+  all.combs <- list()
+  comb.names <- list()
+  row.index <- 0
+  for(i in 1:length(comb.list)){
+    combs <- comb.list[[i]]
+    
+    if(is.null(nrow(comb.list[[i]]))) {
+      t.combs <- 1
+    } else {
+      t.combs <- nrow(comb.list[[i]])
+    }
+    
+    for(j in 1:t.combs) {
+      row.index <- row.index + 1
+      all.combs[[row.index]] <- combs[j,]
+      c.names <- GA.inputs$layer.names[combs[j,]]
+      comb.names[[row.index]] <- paste(c.names, collapse = ".")
+    }
+  }
+  
+  GA.input_orig <- GA.inputs
+  
+  Results <- vector(mode = 'list', length = replicate)
+  
+  #subset all.combs and comb.names for the chunk provided to this process
+
+  # Optimization without scaling --------------------------------------------
+  
+  # * Multisurface ----------------------------------------------------------
+  
+  ms.cd <- vector(mode = 'list',
+                  length = length(all.combs))
+  
+  ms.k <- vector(mode = 'list',
+                 length = length(all.combs))
+  
+  AICc.tab_list <- vector(mode = 'list',
+                          length = length(all.combs))
+  
+  ms.results <- vector(mode = "list", length = length(all.combs))
+  
+  #n_ss.cd <- length(ss.results$cd)
+  #all.cd <- c(ss.results$cd,
+   #           ms.cd)
+  
+  #for(j in 1:length(all.combs)) {
+  j <- my_job_index
+  print(paste0("My job is: ", j))
+    dir.create(paste0("./", comb.names[[j]]))
+    dir.create(paste0("./", comb.names[[j]],"/Plots"))
+    
+    # Select raster surfaces
+    r.vec <- 1:GA.input_orig$n.layers
+    drop.vec <- r.vec[!(r.vec %in% all.combs[[j]])]
+    asc.comb <- dropLayer(GA.input_orig$Resistance.stack, drop.vec)
+    print(asc.comb)
+    
+    if(!is.null(GA.input_orig$inputs$select.trans)) {
+      s.trans <- GA.input_orig$inputs$select.trans[all.combs[[j]]]
+    } else {
+      s.trans <- GA.input_orig$inputs$select.trans
+    }
+    
+    if(is.null(GA.input_orig$inputs$scale)) {
+      ms.scale <- FALSE
+    } else {
+      ms.scale <- TRUE
+    }
+    
+    if(sum(GA.input_orig$inputs$scale.surfaces) == 0) {
+      sc.surf <- NULL
+    } else {
+      sc.surf <- GA.input_orig$inputs$scale.surfaces[all.combs[[j]]]
+    }
+    
+    #sc.surf <- GA.input_orig$inputs$scale.surfaces[all.combs[[j]]]
+    
+    # Update GA.input 
+    print(paste0("max.cont before: ", GA.input_orig$inputs$max.cont))
+    GA.inputs <- GA.prep(ASCII.dir = asc.comb,
+                         Results.dir = ".",
+                         min.cat = GA.input_orig$inputs$min.cat,
+                         max.cat = GA.input_orig$inputs$max.cat,
+                         max.cont = GA.input_orig$inputs$max.cont,
+                         min.scale = GA.input_orig$inputs$min.scale,
+                         max.scale = GA.input_orig$inputs$max.scale,
+                         cont.shape = NULL,
+                         select.trans = s.trans,
+                         method = GA.input_orig$inputs$method,
+                         scale = ms.scale,
+                         scale.surfaces = sc.surf,
+                         k.value = GA.input_orig$inputs$k.value,
+                         pop.mult = GA.input_orig$inputs$pop.mult,
+                         percent.elite = GA.input_orig$inputs$percent.elite,
+                         type = GA.input_orig$inputs$type,
+                         pcrossover = GA.input_orig$inputs$pcrossover,
+                         pmutation = GA.input_orig$inputs$pmutation,
+                         maxiter = GA.input_orig$inputs$maxiter,
+                         run = GA.input_orig$inputs$run,
+                         keepBest = GA.input_orig$inputs$keepBest,
+                         population = GA.input_orig$inputs$population,
+                         selection = GA.input_orig$inputs$selection,
+                         crossover = GA.input_orig$inputs$crossover,
+                         mutation = GA.input_orig$inputs$mutation,
+                         pop.size = GA.input_orig$inputs$pop.size,
+                         parallel = as.numeric(cores),
+                         seed = GA.input_orig$inputs$seed,
+                         quiet = GA.input_orig$inputs$quiet,
+                         Plots.dir="."
+    )
+    
+    # Update GA.input directories
+    GA.inputs$Plots.dir <- paste0(".")
+    
+    GA.inputs$Results.dir <- paste0(".")
+    
+    ms.results <- MS_pipeline_optim(gdist.inputs = gdist.inputs,
+                                GA.inputs = GA.inputs, 
+                                NAME=comb.names[[j]])
+    print(ms.results)
+    
+    #all.cd[[(j + n_ss.cd)]] <- ms.results[[j]]$cd[[1]]
+    
+    #ms.k[[j]] <- ms.results[[j]]$k
+    
+    #AICc.tab_list[[j]] <- ms.results[[j]]$AICc.tab
+    saveRDS(ms.results, paste0(j, "_", comb.names[[j]], ".MS.rds"))
+
+}
+
+
 
