@@ -358,7 +358,7 @@ GA.prep <- function(ASCII.dir,
   }
 
   if(Results.dir != "all.comb" & Results.dir != "all_comb") {
-    list(
+    return(list(
       parm.index = parm.index,
       ga.min = ga.min,
       ga.max = ga.max,
@@ -395,10 +395,41 @@ GA.prep <- function(ASCII.dir,
       method = method,
       k.value = k.value,
       seed = seed,
-      quiet = quiet
-    )
+      quiet = quiet,
+      inputs = list(
+        ASCII.dir = ASCII.dir,
+        Results.dir = Results.dir,
+        min.cat = min.cat,
+        max.cat = max.cat,
+        max.cont = max.cont,
+        min.scale = min.scale,
+        max.scale = max.scale,
+        cont.shape = cont.shape,
+        select.trans = select.trans,
+        method = method,
+        scale = scale,
+        scale.surfaces = scale.surfaces,
+        k.value = k.value,
+        pop.mult = pop.mult,
+        percent.elite = percent.elite,
+        type = type,
+        pcrossover = pcrossover,
+        pmutation = pmutation,
+        maxiter = maxiter,
+        run = run,
+        keepBest = keepBest,
+        population = population,
+        selection = selection,
+        crossover = crossover,
+        mutation = mutation,
+        pop.size = pop.size,
+        parallel = parallel,
+        seed = seed,
+        quiet = quiet
+      )
+    ))
   } else {
-    list(
+    return(list(
       parm.index = parm.index,
       ga.min = ga.min,
       ga.max = ga.max,
@@ -467,7 +498,7 @@ GA.prep <- function(ASCII.dir,
         seed = seed,
         quiet = quiet
       )
-    )
+    ))
   }
 
 }

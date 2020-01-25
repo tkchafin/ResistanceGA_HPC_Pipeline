@@ -37,6 +37,7 @@ process ss_optimization{
     file("*_CD.SS.rds") into cd_list
     file("*_MLPE.SS.rds") into mlpe_list
     file("*_distMat.csv") into distmat_list
+    file("*.asc") into ss_asc_files
 
     script:
     """
@@ -85,17 +86,20 @@ process ms_make_batches{
 
 ms_batch.splitText(by: params.ms_jobs_per_node, file: true).set{chunks}
 
+gdist_inputs.into {gd_opt; gd_gather}
+GA_inputs.into {ga_opt; ga_gather}
+
 process ms_optimization{
 
     publishDir "${workflow.workDir}/${params.publish_dir}", mode: 'copy', overwrite: true
 
     input:
     file (chunk) from chunks
-	file gd from gdist_inputs
-	file ga from GA_inputs
+    file gd from gd_opt
+    file ga from ga_opt
 
     output:
-    file("*.MS.rds") into ms_results
+    file("MS_RESULTS*") into ms_results
 
     script:
     """

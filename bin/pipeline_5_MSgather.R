@@ -28,12 +28,13 @@ args <- commandArgs(trailingOnly=TRUE)
 #  quit()
 #}
 
-WD<-args[1] #working directory
+#WD<-args[1] #working directory
+WD<-"~/ResistanceGA_HPC_Pipeline/work/all_comb"
 RSRC<-args[2] #path to R scripts to source
-MAX_COMB<-args[3]
-GD<-args[4]
-GA<-args[5]
-MY_JOB<-args[6]
+SS <- args[3]
+GD <- args[4]
+GA <- args[5]
+iters<-args[6]
 
 #source the R files
 file.sources = list.files(path=paste0(RSRC), pattern="*.R$")
@@ -42,10 +43,15 @@ sapply(paste0(RSRC, "/", file.sources),source)
 gdist.inputs <- readRDS(paste0(WD, "/", GD))
 GA.inputs <- readRDS(paste0(WD, "/", GA))
 
-print(paste0("MAX_COMB:", MAX_COMB))
-print(paste0("MY_JOB:", MY_JOB))
+#load all ms results
+ms.results <- list.files(full.names = TRUE, path=WD, 
+                       pattern = "*.MS.rds$") %>%
+                   map_dfr(readRDS) %>% 
+                   bind_rows()
 
-all_comb_pipeline_MS(gdist.inputs,
+ss.results <- readRDW(paste0(WD, "/", SS))
+
+ms_results_gather(gdist.inputs,
                           GA.inputs,
-                          max.combination = MAX_COMB,
-                          my_job_index=MY_JOB)
+                          ms.results=ms.results,
+                          ss/results=ss.results)

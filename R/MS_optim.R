@@ -29,7 +29,7 @@ MS_pipeline_optim <- function(CS.inputs = NULL,
       )
     }
     t1 <- proc.time()[3]
-    
+    print(paste0("maxiter: ", GA.inputs$maxiter))
     multi.GA_nG <- ga(
       type = "real-valued",
       fitness = Resistance.Opt_multi,
@@ -45,7 +45,7 @@ MS_pipeline_optim <- function(CS.inputs = NULL,
       lower = GA.inputs$ga.min,
       upper = GA.inputs$ga.max,
       popSize = GA.inputs$pop.size,
-      maxiter = GA.inputs$maxiter,
+      maxiter = as.numeric(GA.inputs$maxiter),
       run = GA.inputs$run,
       parallel = FALSE,
       keepBest = GA.inputs$keepBest,
@@ -53,6 +53,7 @@ MS_pipeline_optim <- function(CS.inputs = NULL,
       suggestions = GA.inputs$SUGGESTS,
       quiet = GA.inputs$quiet
     )
+    #print(multi.GA_nG)
     rt <- proc.time()[3] - t1
     
     if(dim(multi.GA_nG@solution)[1] > 1) {
@@ -107,7 +108,7 @@ MS_pipeline_optim <- function(CS.inputs = NULL,
     Diagnostic.Plots(
       resistance.mat = paste0(NAME, "_resistances.out"),
       genetic.dist = CS.inputs$response,
-      plot.dir = GA.inputs$Plots.dir,
+      plot.dir = paste0(GA.inputs$Plots.dir, "/"),
       type = type,
       ID = CS.inputs$ID,
       ZZ = CS.inputs$ZZ
@@ -206,9 +207,9 @@ MS_pipeline_optim <- function(CS.inputs = NULL,
     saveRDS(multi.GA_nG, 
             file = paste0(GA.inputs$Results.dir, NAME, ".rds"))
     
-    file.remove(list.files(GA.inputs$Write.dir, full.names = TRUE))
+    #file.remove(list.files(GA.inputs$Write.dir, full.names = TRUE))
     
-    unlink(GA.inputs$Write.dir, recursive = T, force = T)
+    #unlink(GA.inputs$Write.dir, recursive = T, force = T)
     
     k.df <- data.frame(surface = NAME, k = k)
     

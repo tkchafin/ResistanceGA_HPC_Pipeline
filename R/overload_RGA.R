@@ -1497,7 +1497,6 @@ all_comb_pipeline_MS <- function(gdist.inputs,
   max.combination<-as.numeric(max.combination)
   my_job_index <- as.numeric(my_job_index)
   mc <- max.combination
-  print(max.combination)
   
   if(length(max.combination) == 2) {
     if(mc[1] == 1) {
@@ -1513,18 +1512,15 @@ all_comb_pipeline_MS <- function(gdist.inputs,
     min.combination <- 2
     ss <- TRUE
   }
-  print(GA.inputs)
   if(max.combination > GA.inputs$n.layers) {
     max.combination <- GA.inputs$n.layers
   }
-  print(max.combination)
   comb.list <- vector(mode = "list", length = (max.combination - 1))
   
   list.count <- 0
   surface.count <- 0
   for(i in min.combination:max.combination) {
     list.count <- list.count + 1
-    print(max.combination)
     comb.list[[list.count]] <- t(combn(1:GA.inputs$n.layers, i))
     if(is.null(nrow(comb.list[[list.count]]))) {
       n.comb <- 1
@@ -1582,14 +1578,15 @@ all_comb_pipeline_MS <- function(gdist.inputs,
   #for(j in 1:length(all.combs)) {
   j <- my_job_index
   print(paste0("My job is: ", j))
-    dir.create(paste0("./", comb.names[[j]]))
-    dir.create(paste0("./", comb.names[[j]],"/Plots"))
+    results<-paste0("./MS_RESULTS_", comb.names[[j]])
+    plots<-(paste0("./MS_RESULTS_", comb.names[[j]],"/Plots"))
+    dir.create(results)
+    dir.create(plots)
     
     # Select raster surfaces
     r.vec <- 1:GA.input_orig$n.layers
     drop.vec <- r.vec[!(r.vec %in% all.combs[[j]])]
     asc.comb <- dropLayer(GA.input_orig$Resistance.stack, drop.vec)
-    print(asc.comb)
     
     if(!is.null(GA.input_orig$inputs$select.trans)) {
       s.trans <- GA.input_orig$inputs$select.trans[all.combs[[j]]]
@@ -1612,9 +1609,8 @@ all_comb_pipeline_MS <- function(gdist.inputs,
     #sc.surf <- GA.input_orig$inputs$scale.surfaces[all.combs[[j]]]
     
     # Update GA.input 
-    print(paste0("max.cont before: ", GA.input_orig$inputs$max.cont))
     GA.inputs <- GA.prep(ASCII.dir = asc.comb,
-                         Results.dir = ".",
+                         Results.dir = results,
                          min.cat = GA.input_orig$inputs$min.cat,
                          max.cat = GA.input_orig$inputs$max.cat,
                          max.cont = GA.input_orig$inputs$max.cont,
@@ -1631,7 +1627,7 @@ all_comb_pipeline_MS <- function(gdist.inputs,
                          type = GA.input_orig$inputs$type,
                          pcrossover = GA.input_orig$inputs$pcrossover,
                          pmutation = GA.input_orig$inputs$pmutation,
-                         maxiter = GA.input_orig$inputs$maxiter,
+                         maxiter = as.numeric(GA.input_orig$inputs$maxiter),
                          run = GA.input_orig$inputs$run,
                          keepBest = GA.input_orig$inputs$keepBest,
                          population = GA.input_orig$inputs$population,
@@ -1642,7 +1638,7 @@ all_comb_pipeline_MS <- function(gdist.inputs,
                          parallel = as.numeric(cores),
                          seed = GA.input_orig$inputs$seed,
                          quiet = GA.input_orig$inputs$quiet,
-                         Plots.dir="."
+                         Plots.dir=plots
     )
     
     # Update GA.input directories
@@ -1660,9 +1656,107 @@ all_comb_pipeline_MS <- function(gdist.inputs,
     #ms.k[[j]] <- ms.results[[j]]$k
     
     #AICc.tab_list[[j]] <- ms.results[[j]]$AICc.tab
-    saveRDS(ms.results, paste0(j, "_", comb.names[[j]], ".MS.rds"))
+    saveRDS(ms.results, paste0(comb.names[[j]], ".MS.rds"))
 
 }
 
 
+
+ms_results_gather <- function(gdist.inputs,
+                                 GA.inputs,
+                                 results.dir,
+                                 max.combination = NULL,
+                                 iters = 1000,
+                                 replicate = 1,
+                                 sample.prop = 0.75,
+                                 nlm = FALSE,
+                                 dist_mod = TRUE,
+                                 null_mod = TRUE,
+                                 ms.results = NULL,
+                                 ss.results = NULL) {
+
+
+
+  all.cd <- c(ss.results$cd, ms.results$cd[[1]])
+
+  ms.k <- ms.results$k
+
+  AICc.tab_list[[j]] <- ms.results[[j]]$AICc.tab
+
+  # Convert combination lists to data frames
+  all.k <- rbind(ss.results$k,
+               plyr::ldply(ms.k))
+
+  names(all.cd) <- all.k$surface
+
+
+  if(is.null(ss.results)) {
+    all.AICc <- plyr::ldply(AICc.tab_list)
+  } else {
+    all.AICc <- rbind(ss.results$AICc,
+                      plyr::ldply(AICc.tab_list))
+  }
+
+# all.AICc <- all.AICc %>% 
+#   dplyr::arrange(., AICc) %>%
+#   dplyr::mutate(., delta.AICc = AICc - min(AICc)) %>%
+#   dplyr::mutate(., weight = (exp(-0.5 * delta.AICc)) / sum(exp(-0.5 * delta.AICc))) %>%
+#   as.data.frame()
+# 
+# 
+# # * Bootstrap -----------------------------------------------------
+# 
+# obs <- gdist.inputs$n.Pops
+# genetic.mat <- matrix(0, obs, obs)
+# genetic.mat[lower.tri(genetic.mat)] <- gdist.inputs$response
+# 
+# boot.results <- Resist.boot(mod.names = all.k[,1],
+#                             dist.mat = all.cd,
+#                             n.parameters = all.k[,2],
+#                             sample.prop = sample.prop,
+#                             iters = iters,
+#                             obs = obs,
+#                             genetic.mat = genetic.mat)
+# 
+# } # End scaled if-else
+# 
+# # Write AICc table and Boot Results to replicate results directory
+# write.table(x = all.AICc,
+#             paste0(results.dir,'rep_',i,"/",
+#                    "All_Combinations_Summary.csv"),
+#             row.names = F,
+#             col.names = T,
+#             sep = ",")
+# 
+# write.table(x = as.data.frame(boot.results),
+#             paste0(results.dir,'rep_',i,"/",
+#                    "Bootstrap_Results.csv"),
+#             row.names = F,
+#             col.names = T,
+#             sep = ",")
+# 
+# if(replicate > 1) {
+#   Results[[i]] <- list(summary.table = all.AICc,
+#                        boot.results = boot.results,
+#                        all.k = all.k,
+#                        all.cd = all.cd,
+#                        genetic.dist_mat = genetic.mat,
+#                        ss.results = ss.results,
+#                        ms.results = ms.results
+#   )
+#   names(Results)[i] <- paste0('rep_',i)
+#   
+# } else {
+#   Results <- list(summary.table = all.AICc,
+#                   boot.results = boot.results,
+#                   all.k = all.k,
+#                   all.cd = all.cd,
+#                   genetic.dist_mat = genetic.mat,
+#                   ss.results = ss.results,
+#                   ms.results = ms.results
+#   )
+# 
+# return(Results)
+# 
+# } # End function
 
