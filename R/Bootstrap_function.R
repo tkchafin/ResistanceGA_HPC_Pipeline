@@ -56,20 +56,20 @@ Resist.boot <-
       samp <- sort(sample.list[[i]])
       genetic.samp <- lower(genetic.mat[samp, samp])
       AICc.tab <- vector(mode = "list", length = length(dist.mat))
-      
+    
       for (j in seq_along(dist.mat)) {
         # composite model
-        dat <- lower(dist.mat[[j]][samp, samp])
-        
+        dat <- dist.mat[[j]][samp, samp]
+      
         AICc <- boot.AICc(
           response = genetic.samp,
-          resistance = dat,
+          resistance = lower(dat),
           ID = ID,
           ZZ = ZZ,
-          k = n.parameters[j],
+          k = n.parameters[[j]],
           obs = length(samp)
         )
-        
+
         mod.aic <- data.frame(mod.names[j], n.parameters[j], AICc)
         names(mod.aic) <- c("surface", "k", "AIC","AICc", "R2m", "LL")
         

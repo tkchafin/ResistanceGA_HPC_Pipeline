@@ -34,7 +34,7 @@ RSRC<-args[2] #path to R scripts to source
 SS <- args[3]
 GD <- args[4]
 GA <- args[5]
-iters<-args[6]
+ITERS<-as.numeric(args[6])
 
 #source the R files
 file.sources = list.files(path=paste0(RSRC), pattern="*.R$")
@@ -43,15 +43,13 @@ sapply(paste0(RSRC, "/", file.sources),source)
 gdist.inputs <- readRDS(paste0(WD, "/", GD))
 GA.inputs <- readRDS(paste0(WD, "/", GA))
 
-#load all ms results
-ms.results <- list.files(full.names = TRUE, path=WD, 
-                       pattern = "*.MS.rds$") %>%
-                   map_dfr(readRDS) %>% 
-                   bind_rows()
+#read SS results
+ss.results <- readRDS(paste0(WD, "/", SS))
 
-ss.results <- readRDW(paste0(WD, "/", SS))
-
-ms_results_gather(gdist.inputs,
+ms.results<-ms_results_gather(gdist.inputs,
                           GA.inputs,
-                          ms.results=ms.results,
-                          ss/results=ss.results)
+                          ss.results=ss.results,
+                          ms.dir=WD, 
+                          iters=ITERS)
+
+saveRDS(ms.results, file="multi_surface.RESULTS_ALL.rds")

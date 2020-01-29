@@ -46,7 +46,7 @@ surfaces <- raster::stack(FILES)
 samples <- read.table(file = SAMPLES, sep = '\t', header = TRUE)
 sample.locales <- SpatialPoints(samples[,c(14,15)])
 
-gen.dist <- read.table(file = GENDIST, sep = '\t', header = TRUE)
+gen.dist <- read.table(file = GENDIST, sep = '\t', header=T)
 gen.dist <- otuSummary::matrixConvert(gen.dist, colname = c("ind1", "ind2", "dist"))
 gen.dist <- gen.dist[,3]
 
