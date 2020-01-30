@@ -1,13 +1,13 @@
 #!/usr/bin/env nextflow
 /*
- * Author       :
+ * Author:
  *      Tyler K. Chafin
  *      tkchafin@uark.edu
  *
  *  Written as a part of funded research
  *  by the Arkansas Game and Fish Commission
  *  building predictive models to understand
- *  and forecast the spread of chronis wasting
+ *  and forecast the spread of chronic wasting
  *  disease in white-tailed deer
  *  2019
  *
@@ -41,7 +41,7 @@ process ss_optimization{
 
     script:
     """
-    Rscript --vanilla ${params.code_dir}/bin/pipeline_1_SSoptimization.R $workflow.workDir/$params.publish_dir $params.cores_per_job_ss $params.R_source_dir $params.gen_dist $params.coords $params.max_iter $r
+    ${params.Rscript_path} --vanilla ${params.code_dir}/bin/pipeline_1_SSoptimization.R $workflow.workDir/$params.publish_dir $params.cores_per_job_ss $params.R_source_dir $params.gen_dist $params.coords $params.max_iter $r
     """
 }
 
@@ -57,7 +57,7 @@ process ss_gather{
 
     script:
     """
-    Rscript --vanilla ${params.code_dir}/bin/pipeline_2_SSgather.R $workflow.workDir/$params.publish_dir $params.R_source_dir
+    ${params.Rscript_path} --vanilla ${params.code_dir}/bin/pipeline_2_SSgather.R $workflow.workDir/$params.publish_dir $params.R_source_dir
     """
 }
 
@@ -80,7 +80,7 @@ process ms_make_batches{
 
     script:
     """
-    Rscript --vanilla ${params.code_dir}/bin/pipeline_3_MS-get-batches.R $workflow.workDir/$params.publish_dir $params.R_source_dir $params.max_combination $params.max_iter $params.cores_per_job_ms $params.gen_dist $params.coords ${input_files}
+    ${params.Rscript_path} --vanilla ${params.code_dir}/bin/pipeline_3_MS-get-batches.R $workflow.workDir/$params.publish_dir $params.R_source_dir $params.max_combination $params.max_iter $params.cores_per_job_ms $params.gen_dist $params.coords ${input_files}
     """
 }
 
@@ -104,7 +104,7 @@ process ms_optimization{
 
     script:
     """
-    cat $chunk | parallel -j ${params.ms_jobs_parallel} "Rscript --vanilla ${params.code_dir}/bin/pipeline_4_MSoptimization.R $workflow.workDir/$params.publish_dir $params.R_source_dir $params.max_combination $gd $ga {}"
+    cat $chunk | ${params.parallel_path} -j ${params.ms_jobs_parallel} "${params.Rscript_path} --vanilla ${params.code_dir}/bin/pipeline_4_MSoptimization.R $workflow.workDir/$params.publish_dir $params.R_source_dir $params.max_combination $gd $ga {}"
     """
 }
 
@@ -125,7 +125,7 @@ process ms_gather{
 
     script:
     """
-    Rscript --vanilla ${params.code_dir}/bin/pipeline_5_MSgather.R $workflow.workDir/$params.publish_dir $params.R_source_dir $ss $gd $ga $params.boots
+    ${params.Rscript_path} --vanilla ${params.code_dir}/bin/pipeline_5_MSgather.R $workflow.workDir/$params.publish_dir $params.R_source_dir $ss $gd $ga $params.boots
     """
 
 }

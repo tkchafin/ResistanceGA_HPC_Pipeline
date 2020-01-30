@@ -1,0 +1,98 @@
+Bootstrap: library
+From: ubuntu:18.04
+
+%setup
+    touch /file1
+    touch ${SINGULARITY_ROOTFS}/file2
+
+%files
+    /file1
+    /file1 /opt
+
+%environment
+    export LISTEN_PORT=12345
+    export LC_ALL=C
+
+%post
+    apt-get update && apt-get install -y netcat
+    NOW=`date`
+    echo "export NOW=\"${NOW}\"" >> $SINGULARITY_ENVIRONMENT
+
+    apt -y install apt-transport-https software-properties-common
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
+    add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu bionic-cran35/'
+    add-apt-repository universe
+    add-apt-repository main
+    apt-get update
+    apt-get install -y libopenblas-dev r-base r-base-core libcurl4-openssl-dev libopenmpi-dev openmpi-bin openmpi-common openmpi-doc openssh-client openssh-server libssh-dev wget vim git nano git cmake  gfortran g++ curl wget python autoconf bzip2 libtool libtool-bin python-pip python-dev
+    apt-get install -y libxml2-dev
+    apt-get install -y parallel
+    R --slave -e 'install.packages("Rcpp")'
+    R --slave -e 'install.packages("xml2")'
+    R --slave -e 'install.packages("rlang")'
+    R --slave -e 'install.packages("glue")'
+    R --slave -e 'install.packages("usethis")'
+    R --slave -e 'install.packages("fs")'
+    R --slave -e 'install.packages("fansi")'
+    R --slave -e 'install.packages("ellipsis")'
+    R --slave -e 'install.packages("backports")'
+    R --slave -e 'install.packages("digest")'
+    R --slave -e 'install.packages("stringi")'
+    R --slave -e 'install.packages("htmltools")'
+    R --slave -e 'install.packages("htmlTable")'
+    R --slave -e 'install.packages("colorspace")'
+    R --slave -e 'install.packages("lazyeval")'
+    R --slave -e 'install.packages("tibble")'
+    R --slave -e 'install.packages("base64enc")'
+    R --slave -e 'install.packages("viridis")'
+    R --slave -e 'install.packages("vctrs")'
+    R --slave -e 'install.packages("purrr")'
+    R --slave -e 'install.packages("jsonlite")'
+    R --slave -e 'install.packages("plyr")'
+    R --slave -e 'install.packages("tidyverse")'
+    R --slave -e 'install.packages("dplyr")'
+    R --slave -e 'install.packages("reshape2")'
+    R --slave -e 'install.packages("devtools", repos="https://cloud.r-project.org/", dependencies=T)'
+    R --slave -e 'install.packages("MuMIn")'
+    R --slave -e 'install.packages("raster")'
+    R --slave -e 'install.packages("otuSummary")'
+    R --slave -e 'install.packages("lme4")'
+    R --slave -e 'install.packages("GA")'
+    R --slave -e 'install.packages("ggplot2")'
+    R --slave -e 'install.packages("gdistance")'
+    R --slave -e 'install.packages("later")'
+    R --slave -e 'install.packages("promises")'
+    R --slave -e 'install.packages("httpuv")'
+    R --slave -e 'install.packages("mime")'
+    R --slave -e 'install.packages("fastmap")'
+    R --slave -e 'install.packages("miniUI")'
+    R --slave -e 'install.packages("ggExtra")'
+    R --slave -e 'install.packages("Matrix")'
+    R --slave -e 'install.packages("akima")'
+    R --slave -e 'install.packages("magritter")'
+    R --slave -e 'install.packages("spatstat")'
+    R --slave -e 'install.packages("ps")'
+    R --slave -e 'install.packages("processx")'
+    R --slave -e 'install.packages("testthat")'
+    R --slave -e 'install.packages("pkgload")'
+    R --slave -e 'devtools::install_github("wpeterman/ResistanceGA")'
+
+%runscript
+    echo "Container was created $NOW"
+    echo "Arguments received: $*"
+    exec echo "$@"
+
+%startscript
+    nc -lp $LISTEN_PORT
+
+%test
+    grep -q NAME=\"Ubuntu\" /etc/os-release
+    if [ $? -eq 0 ]; then
+        echo "Container base is Ubuntu as expected."
+    else
+        echo "Container base is not Ubuntu."
+    fi
+
+%labels
+    Author tylerkchafin
+    Version v0.0.1
